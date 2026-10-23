@@ -1,7 +1,7 @@
 // Imports
-use crate::RnPensSideBar;
 use crate::canvaswrapper::RnCanvasWrapper;
 use crate::{RnAppWindow, RnColorPicker, RnPenPicker, dialogs};
+use crate::{RnPensSideBar, RnQuickAccessBar};
 use core::time::Duration;
 use gtk4::{
     CompositeTemplate, Overlay, ProgressBar, ScrolledWindow, Widget, gio, glib, glib::clone,
@@ -35,6 +35,8 @@ mod imp {
         pub(crate) tabview: TemplateChild<adw::TabView>,
         #[template_child]
         pub(crate) sidebar_box: TemplateChild<gtk4::Box>,
+        #[template_child]
+        pub(crate) quickaccessbar: TemplateChild<RnQuickAccessBar>,
         #[template_child]
         pub(crate) sidebar_scroller: TemplateChild<ScrolledWindow>,
         #[template_child]
@@ -128,6 +130,10 @@ impl RnOverlays {
         self.imp().sidebar_box.get()
     }
 
+    pub(crate) fn quickaccessbar(&self) -> RnQuickAccessBar {
+        self.imp().quickaccessbar.get()
+    }
+
     pub(crate) fn sidebar_scroller(&self) -> ScrolledWindow {
         self.imp().sidebar_scroller.get()
     }
@@ -143,6 +149,7 @@ impl RnOverlays {
         imp.penpicker.get().init(appwindow);
         imp.penssidebar.get().brush_page().init(appwindow);
         imp.penssidebar.get().shaper_page().init(appwindow);
+        imp.quickaccessbar.get().init(appwindow);
         imp.penssidebar.get().typewriter_page().init(appwindow);
         imp.penssidebar.get().eraser_page().init(appwindow);
         imp.penssidebar.get().selector_page().init(appwindow);

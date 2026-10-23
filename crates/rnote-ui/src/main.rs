@@ -7,6 +7,7 @@
 )]
 
 // Modules
+pub(crate) mod accelguard;
 pub(crate) mod app;
 pub(crate) mod appmenu;
 pub(crate) mod appwindow;
@@ -27,6 +28,8 @@ pub(crate) mod mainheader;
 pub(crate) mod overlays;
 pub(crate) mod penpicker;
 pub(crate) mod penssidebar;
+pub(crate) mod popoverguard;
+pub(crate) mod quickaccess;
 pub(crate) mod settingspanel;
 pub(crate) mod sidebar;
 pub(crate) mod strokecontentpaintable;
@@ -52,6 +55,7 @@ pub(crate) use mainheader::RnMainHeader;
 pub(crate) use overlays::RnOverlays;
 pub(crate) use penpicker::RnPenPicker;
 pub(crate) use penssidebar::RnPensSideBar;
+pub(crate) use quickaccess::RnQuickAccessBar;
 pub(crate) use settingspanel::RnSettingsPanel;
 pub(crate) use sidebar::RnSidebar;
 pub(crate) use strokecontentpaintable::StrokeContentPaintable;

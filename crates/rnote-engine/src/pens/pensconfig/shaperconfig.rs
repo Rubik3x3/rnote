@@ -2,8 +2,9 @@
 use rand::{RngExt, SeedableRng};
 use rnote_compose::Constraints;
 use rnote_compose::Style;
-use rnote_compose::builders::ShapeBuilderType;
+use rnote_compose::builders::{AxesOptions, ShapeBuilderType};
 use rnote_compose::constraints::ConstraintRatio;
+use rnote_compose::shapes::ArrowHead;
 use rnote_compose::style::rough::RoughOptions;
 use rnote_compose::style::smooth::SmoothOptions;
 use serde::{Deserialize, Serialize};
@@ -55,6 +56,11 @@ pub struct ShaperConfig {
     pub highlight_opacity: f64,
     #[serde(rename = "constraints")]
     pub constraints: Constraints,
+    #[serde(rename = "axes_options")]
+    pub axes_options: AxesOptions,
+    /// Style of the arrow heads, of arrows and coordinate system axes.
+    #[serde(rename = "arrow_head")]
+    pub arrow_head: ArrowHead,
 }
 
 impl Default for ShaperConfig {
@@ -72,6 +78,8 @@ impl Default for ShaperConfig {
             highlight_mode: false,
             highlight_opacity: 0.45,
             constraints,
+            axes_options: AxesOptions::default(),
+            arrow_head: ArrowHead::Filled,
         }
     }
 }

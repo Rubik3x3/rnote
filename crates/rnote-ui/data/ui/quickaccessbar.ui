@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ### Quick Access Bar ### -->
+<interface>
+  <template class="RnQuickAccessBar" parent="GtkWidget">
+    <property name="layout-manager">
+      <object class="GtkBoxLayout">
+        <property name="orientation">vertical</property>
+        <property name="spacing">6</property>
+      </object>
+    </property>
+    <child>
+      <object class="GtkBox" id="items_box">
+        <property name="orientation">vertical</property>
+        <property name="spacing">6</property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkSeparator" id="separator" />
+    </child>
+    <child>
+      <object class="GtkMenuButton" id="add_menubutton">
+        <property name="icon-name">list-add-symbolic</property>
+        <property name="tooltip-text" translatable="yes">Customize Quick Access</property>
+        <property name="direction">left</property>
+        <style>
+          <class name="flat" />
+        </style>
+        <property name="popover">
+          <object class="GtkPopover" id="chooser_popover">
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="spacing">6</property>
+                <property name="margin-top">6</property>
+                <property name="margin-bottom">6</property>
+                <property name="margin-start">6</property>
+                <property name="margin-end">6</property>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label" translatable="yes">Quick Access</property>
+                    <property name="xalign">0</property>
+                    <style>
+                      <class name="heading" />
+                    </style>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="label" translatable="yes">Check what you use often. Right-click a button on the bar to reorder or remove it.</property>
+                    <property name="xalign">0</property>
+                    <property name="wrap">true</property>
+                    <property name="max-width-chars">32</property>
+                    <style>
+                      <class name="dim-label" />
+                      <class name="caption" />
+                    </style>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkScrolledWindow">
+                    <property name="hscrollbar-policy">never</property>
+                    <property name="propagate-natural-height">true</property>
+                    <property name="max-content-height">460</property>
+                    <child>
+                      <object class="GtkBox" id="chooser_box">
+                        <property name="orientation">vertical</property>
+                        <property name="spacing">2</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkButton" id="reset_button">
+                    <property name="label" translatable="yes">Restore Defaults</property>
+                    <style>
+                      <class name="flat" />
+                    </style>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </property>
+      </object>
+    </child>
+  </template>
+</interface>

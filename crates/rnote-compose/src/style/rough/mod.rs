@@ -10,7 +10,8 @@ use super::Composer;
 use crate::Color;
 use crate::ext::{DAffine2Ext, Vector2Ext};
 use crate::shapes::{
-    Arrow, CubicBezier, Ellipse, Line, Polygon, Polyline, QuadraticBezier, Rectangle, Shapeable,
+    Arrow, ArrowHead, CubicBezier, Ellipse, Line, Polygon, Polyline, QuadraticBezier, Rectangle,
+    Shapeable,
 };
 use p2d::bounding_volume::{Aabb, BoundingVolume};
 use roughr::Point2D;
@@ -75,11 +76,15 @@ impl Composer<RoughOptions> for Arrow {
     fn draw_composed(&self, cx: &mut impl piet::RenderContext, options: &RoughOptions) {
         cx.save().unwrap();
 
+        let stem_end = match self.head {
+            ArrowHead::Open => self.tip,
+            ArrowHead::Filled => self.compute_head_base(Some(options.stroke_width)),
+        };
         let arrow_stem = rough_piet::KurboGenerator::new(generate_roughr_options(options)).line(
             self.start[0],
             self.start[1],
-            self.tip[0],
-            self.tip[1],
+            stem_end[0],
+            stem_end[1],
         );
 
         let tip = {
@@ -99,10 +104,18 @@ impl Composer<RoughOptions> for Arrow {
             };
 
             rough_piet::KurboGenerator::new(generate_roughr_options(options))
-                .linear_path(&[lline, tip, rline], false)
+                .linear_path(&[lline, tip, rline], self.head == ArrowHead::Filled)
         };
 
         arrow_stem.draw(cx);
+        if self.head == ArrowHead::Filled
+            && let Some(stroke_color) = options.stroke_color
+        {
+            cx.fill(
+                self.head_to_kurbo(Some(options.stroke_width)),
+                &Into::<piet::Color>::into(stroke_color),
+            );
+        }
         tip.draw(cx);
 
         cx.restore().unwrap();

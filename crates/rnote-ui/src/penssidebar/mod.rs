@@ -2,7 +2,7 @@
 mod brushpage;
 mod eraserpage;
 mod selectorpage;
-mod shaperpage;
+pub(crate) mod shaperpage;
 mod toolspage;
 mod typewriterpage;
 

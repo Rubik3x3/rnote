@@ -34,6 +34,45 @@ pub struct Arrow {
 
     /// Tip of the arow.
     pub tip: Vector2,
+
+    /// Style of the arrow head.
+    ///
+    /// Defaults to [ArrowHead::Open] when missing, so older documents stay unchanged.
+    #[serde(rename = "head")]
+    pub head: ArrowHead,
+}
+
+/// The style of an arrow head.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    num_derive::FromPrimitive,
+    num_derive::ToPrimitive,
+)]
+#[serde(rename = "arrow_head")]
+pub enum ArrowHead {
+    /// Two open lines.
+    #[default]
+    #[serde(rename = "open")]
+    Open = 0,
+    /// A filled triangle.
+    #[serde(rename = "filled")]
+    Filled,
+}
+
+impl TryFrom<u32> for ArrowHead {
+    type Error = anyhow::Error;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        num_traits::FromPrimitive::from_u32(value)
+            .ok_or_else(|| anyhow::anyhow!("ArrowHead try_from::<u32>() for value {value} failed"))
+    }
 }
 
 impl Transformable for Arrow {
@@ -83,7 +122,17 @@ impl Arrow {
 
     /// Creating a new arrow with the given start and tip vectors.
     pub fn new(start: Vector2, tip: Vector2) -> Self {
-        Self { start, tip }
+        Self {
+            start,
+            tip,
+            head: ArrowHead::default(),
+        }
+    }
+
+    /// Sets the style of the arrow head.
+    pub fn with_head(mut self, head: ArrowHead) -> Self {
+        self.head = head;
+        self
     }
 
     /// Split the stem of the arrow into the given number of lines.
@@ -107,19 +156,42 @@ impl Arrow {
 
     /// Convert to kurbo shape.
     pub fn to_kurbo(&self, stroke_width: Option<f64>) -> kurbo::BezPath {
-        let mut bez_path =
-            kurbo::Line::new(self.start.to_kurbo_point(), self.tip.to_kurbo_point()).to_path(0.25);
+        let mut bez_path = self.stem_to_kurbo(stroke_width);
+        bez_path.extend(self.head_to_kurbo(stroke_width));
+        bez_path
+    }
+
+    /// The stem as kurbo path.
+    ///
+    /// For a filled head the stem ends at the head base, so it does not poke through the tip.
+    pub fn stem_to_kurbo(&self, stroke_width: Option<f64>) -> kurbo::BezPath {
+        let stem_end = match self.head {
+            ArrowHead::Open => self.tip,
+            ArrowHead::Filled => self.compute_head_base(stroke_width),
+        };
+        kurbo::Line::new(self.start.to_kurbo_point(), stem_end.to_kurbo_point()).to_path(0.25)
+    }
+
+    /// The head as kurbo path, closed for a filled head.
+    pub fn head_to_kurbo(&self, stroke_width: Option<f64>) -> kurbo::BezPath {
         let tip = self.tip.to_kurbo_point();
         let lline = self.compute_lline(stroke_width).to_kurbo_point();
         let rline = self.compute_rline(stroke_width).to_kurbo_point();
 
-        bez_path.extend([
+        let mut els = vec![
             PathEl::MoveTo(lline),
             PathEl::LineTo(tip),
             PathEl::LineTo(rline),
-        ]);
+        ];
+        if self.head == ArrowHead::Filled {
+            els.push(PathEl::ClosePath);
+        }
+        kurbo::BezPath::from_vec(els)
+    }
 
-        bez_path
+    /// The center of the head base, between the ends of `lline` and `rline`.
+    pub fn compute_head_base(&self, stroke_width: Option<f64>) -> Vector2 {
+        (self.compute_lline(stroke_width) + self.compute_rline(stroke_width)) * 0.5
     }
 
     /// Compute the `lline` of the arrow tip.

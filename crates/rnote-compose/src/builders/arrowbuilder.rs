@@ -4,7 +4,7 @@ use crate::constraints::ConstraintRatio;
 use crate::eventresult::EventPropagation;
 use crate::penevent::{PenEvent, PenState};
 use crate::penpath::Element;
-use crate::shapes::Arrow;
+use crate::shapes::{Arrow, ArrowHead};
 use crate::style::{Composer, indicators};
 use crate::{Constraints, EventResult};
 use crate::{Shape, Style};
@@ -20,6 +20,8 @@ pub struct ArrowBuilder {
     start: Vector2,
     /// Position of the tip.
     tip: Vector2,
+    /// Style of the arrow head.
+    head: ArrowHead,
 }
 
 impl BuilderCreator for ArrowBuilder {
@@ -27,6 +29,7 @@ impl BuilderCreator for ArrowBuilder {
         Self {
             start: element.pos,
             tip: element.pos,
+            head: ArrowHead::default(),
         }
     }
 }
@@ -82,8 +85,14 @@ impl Buildable for ArrowBuilder {
 }
 
 impl ArrowBuilder {
+    /// Sets the style of the arrow head.
+    pub fn with_head(mut self, head: ArrowHead) -> Self {
+        self.head = head;
+        self
+    }
+
     /// Returns a configured arrow by the current state of the builder.
     pub fn state_as_arrow(&self) -> Arrow {
-        Arrow::new(self.start, self.tip)
+        Arrow::new(self.start, self.tip).with_head(self.head)
     }
 }

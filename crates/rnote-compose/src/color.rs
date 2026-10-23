@@ -264,6 +264,35 @@ impl palette::Clamp for Color {
     }
 }
 
+/// Soft palette colors with a distinct hue each, readable on light and dark backgrounds.
+pub mod soft {
+    use super::Color;
+
+    const fn rgb(r: f64, g: f64, b: f64) -> Color {
+        Color { r, g, b, a: 1.0 }
+    }
+
+    /// Graphite, the dark ink for light backgrounds.
+    pub const GRAPHITE: Color = rgb(0.169, 0.176, 0.192);
+    /// Warm white, the light ink for dark backgrounds.
+    pub const WHITE: Color = rgb(0.965, 0.961, 0.949);
+    /// Blue.
+    pub const BLUE: Color = rgb(0.239, 0.490, 0.847);
+    /// Green.
+    pub const GREEN: Color = rgb(0.180, 0.620, 0.420);
+    /// Amber.
+    pub const AMBER: Color = rgb(0.890, 0.655, 0.184);
+    /// Orange.
+    pub const ORANGE: Color = rgb(0.886, 0.439, 0.227);
+    /// Red.
+    pub const RED: Color = rgb(0.831, 0.263, 0.310);
+    /// Violet.
+    pub const VIOLET: Color = rgb(0.549, 0.361, 0.784);
+
+    /// The hued colors, in the order used to tell several items apart, e.g. curves of a graph.
+    pub const HUES: [Color; 6] = [BLUE, RED, GREEN, ORANGE, VIOLET, AMBER];
+}
+
 /// Gnome palette blues.
 pub const GNOME_BLUES: [piet::Color; 5] = [
     piet::Color::rgb8(0x99, 0xc1, 0xf1),

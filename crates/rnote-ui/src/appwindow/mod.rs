@@ -264,6 +264,8 @@ impl RnAppWindow {
         imp.overlays.get().init(self);
         imp.sidebar.get().init(self);
         imp.main_header.get().init(self);
+        crate::popoverguard::install(self);
+        crate::accelguard::install(self);
 
         // actions and settings AFTER widget inits
         self.setup_icon_theme();

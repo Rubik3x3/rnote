@@ -1,5 +1,6 @@
 // Imports
-use crate::{RnAppWindow, RnCanvas, RnContextMenu, canvas::reject_pointer_input};
+use crate::canvas::{PRIMARY_MODIFIER_MASK, reject_pointer_input};
+use crate::{RnAppWindow, RnCanvas, RnContextMenu};
 use gtk4::{
     CompositeTemplate, CornerType, EventControllerMotion, EventControllerScroll,
     EventControllerScrollFlags, EventSequenceState, GestureClick, GestureDrag, GestureLongPress,
@@ -363,7 +364,7 @@ mod imp {
                     move |controller, _, dy| {
                         let modifiers = controller.current_event_state();
 
-                        if !modifiers.contains(gdk::ModifierType::CONTROL_MASK) {
+                        if !modifiers.contains(PRIMARY_MODIFIER_MASK) {
                             return glib::Propagation::Proceed;
                         }
 

@@ -1,5 +1,6 @@
 // Modules
 pub(crate) mod export;
+pub(crate) mod functiongraph;
 pub(crate) mod import;
 
 // Imports

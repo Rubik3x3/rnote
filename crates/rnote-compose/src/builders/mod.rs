@@ -1,5 +1,6 @@
 // Modules
 mod arrowbuilder;
+mod axes;
 /// Buildable trait.
 pub mod buildable;
 mod coordsystem2dbuilder;
@@ -20,6 +21,7 @@ mod rectanglebuilder;
 
 // Re-exports
 pub use arrowbuilder::ArrowBuilder;
+pub use axes::{AxesOptions, AxesStyle, Axis};
 pub use coordsystem2dbuilder::CoordSystem2DBuilder;
 pub use coordsystem3dbuilder::CoordSystem3DBuilder;
 pub use cubbezbuilder::CubBezBuilder;
@@ -46,6 +48,8 @@ use serde::{Deserialize, Serialize};
     Clone,
     Debug,
     Default,
+    PartialEq,
+    Eq,
     Serialize,
     Deserialize,
     num_derive::FromPrimitive,
@@ -96,6 +100,19 @@ pub enum ShapeBuilderType {
 }
 
 impl ShapeBuilderType {
+    /// Whether the builder type draws arrows, configurable through [crate::shapes::ArrowHead].
+    pub fn has_arrow_head(self) -> bool {
+        self == Self::Arrow || self.is_coord_system()
+    }
+
+    /// Whether the builder type draws a coordinate system, configurable through [AxesOptions].
+    pub fn is_coord_system(self) -> bool {
+        matches!(
+            self,
+            Self::CoordSystem2D | Self::CoordSystem3D | Self::QuadrantCoordSystem2D
+        )
+    }
+
     /// Converts an icon name into the represented shape builder type. Returns None for invalid strings.
     pub fn from_icon_name(icon_name: &str) -> Option<Self> {
         match icon_name {

@@ -1,6 +1,7 @@
 // Imports
 use super::PenBehaviour;
 use super::PenStyle;
+use super::pensconfig::ShaperConfig;
 use crate::engine::{EngineView, EngineViewMut};
 use crate::strokes::ShapeStroke;
 use crate::strokes::Stroke;
@@ -78,7 +79,7 @@ impl PenBehaviour for Shaper {
 
                 self.state = ShaperState::BuildShape {
                     builder: new_builder(
-                        engine_view.config.pens_config.shaper_config.builder_type,
+                        &engine_view.config.pens_config.shaper_config,
                         element,
                         now,
                     ),
@@ -268,20 +269,35 @@ impl DrawableOnDoc for Shaper {
 }
 
 fn new_builder(
-    builder_type: ShapeBuilderType,
+    shaper_config: &ShaperConfig,
     element: Element,
     now: Instant,
 ) -> Box<dyn Buildable<Emit = Shape>> {
-    match builder_type {
-        ShapeBuilderType::Arrow => Box::new(ArrowBuilder::start(element, now)),
+    let axes_options = shaper_config.axes_options;
+    let arrow_head = shaper_config.arrow_head;
+
+    match shaper_config.builder_type {
+        ShapeBuilderType::Arrow => {
+            Box::new(ArrowBuilder::start(element, now).with_head(arrow_head))
+        }
         ShapeBuilderType::Line => Box::new(LineBuilder::start(element, now)),
         ShapeBuilderType::Rectangle => Box::new(RectangleBuilder::start(element, now)),
         ShapeBuilderType::Grid => Box::new(GridBuilder::start(element, now)),
-        ShapeBuilderType::CoordSystem2D => Box::new(CoordSystem2DBuilder::start(element, now)),
-        ShapeBuilderType::CoordSystem3D => Box::new(CoordSystem3DBuilder::start(element, now)),
-        ShapeBuilderType::QuadrantCoordSystem2D => {
-            Box::new(QuadrantCoordSystem2DBuilder::start(element, now))
-        }
+        ShapeBuilderType::CoordSystem2D => Box::new(
+            CoordSystem2DBuilder::start(element, now)
+                .with_axes_options(axes_options)
+                .with_arrow_head(arrow_head),
+        ),
+        ShapeBuilderType::CoordSystem3D => Box::new(
+            CoordSystem3DBuilder::start(element, now)
+                .with_axes_options(axes_options)
+                .with_arrow_head(arrow_head),
+        ),
+        ShapeBuilderType::QuadrantCoordSystem2D => Box::new(
+            QuadrantCoordSystem2DBuilder::start(element, now)
+                .with_axes_options(axes_options)
+                .with_arrow_head(arrow_head),
+        ),
         ShapeBuilderType::Ellipse => Box::new(EllipseBuilder::start(element, now)),
         ShapeBuilderType::FociEllipse => Box::new(FociEllipseBuilder::start(element, now)),
         ShapeBuilderType::QuadBez => Box::new(QuadBezBuilder::start(element, now)),

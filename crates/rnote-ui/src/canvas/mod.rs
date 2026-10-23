@@ -5,7 +5,7 @@ mod input;
 
 // Re-exports
 pub(crate) use canvaslayout::RnCanvasLayout;
-pub(crate) use input::reject_pointer_input;
+pub(crate) use input::{PRIMARY_MODIFIER_MASK, reject_pointer_input};
 
 // Imports
 use crate::boxed::WidgetFlagsBoxed;

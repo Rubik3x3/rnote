@@ -10,8 +10,9 @@ use gtk4::{
     glib::clone,
 };
 use num_traits::cast::ToPrimitive;
-use rnote_compose::builders::ShapeBuilderType;
+use rnote_compose::builders::{AxesStyle, ShapeBuilderType};
 use rnote_compose::constraints::ConstraintRatio;
+use rnote_compose::shapes::ArrowHead;
 use rnote_compose::style::rough::roughoptions::FillStyle;
 use rnote_compose::style::smooth::{LineCap, LineStyle, SmoothOptions};
 use rnote_engine::pens::pensconfig::ShaperConfig;
@@ -66,6 +67,17 @@ mod imp {
         pub(crate) constraint_three_to_two_row: TemplateChild<adw::SwitchRow>,
         #[template_child]
         pub(crate) constraint_golden_row: TemplateChild<adw::SwitchRow>,
+
+        #[template_child]
+        pub(crate) arrow_group: TemplateChild<adw::PreferencesGroup>,
+        #[template_child]
+        pub(crate) arrow_head_row: TemplateChild<adw::ComboRow>,
+        #[template_child]
+        pub(crate) axes_group: TemplateChild<adw::PreferencesGroup>,
+        #[template_child]
+        pub(crate) axes_style_row: TemplateChild<adw::ComboRow>,
+        #[template_child]
+        pub(crate) axes_tick_spacing_row: TemplateChild<adw::SpinRow>,
 
         #[template_child]
         pub(crate) stroke_width_picker: TemplateChild<RnStrokeWidthPicker>,
@@ -192,6 +204,22 @@ impl RnShaperPage {
         self.imp()
             .shapebuildertype_picker
             .set_picked(Some(builder_type.to_icon_name()));
+        self.update_builder_specific_groups(builder_type);
+    }
+
+    /// Shows only the option groups that apply to the builder type.
+    fn update_builder_specific_groups(&self, builder_type: ShapeBuilderType) {
+        let imp = self.imp();
+        imp.arrow_group.set_visible(builder_type.has_arrow_head());
+        imp.axes_group.set_visible(builder_type.is_coord_system());
+    }
+
+    pub(crate) fn axes_style(&self) -> AxesStyle {
+        AxesStyle::try_from(self.imp().axes_style_row.get().selected()).unwrap()
+    }
+
+    pub(crate) fn arrow_head(&self) -> ArrowHead {
+        ArrowHead::try_from(self.imp().arrow_head_row.get().selected()).unwrap()
     }
 
     pub(crate) fn smoothstyle_line_cap(&self) -> LineCap {
@@ -482,10 +510,63 @@ impl RnShaperPage {
                             .imp()
                             .shapebuildertype_menubutton
                             .set_icon_name(&icon_name);
+                        shaperpage.update_builder_specific_groups(buildertype);
                     }
                 }
             ),
         );
+
+        // Arrow head
+        imp.arrow_head_row.get().connect_selected_notify(clone!(
+            #[weak(rename_to=shaperpage)]
+            self,
+            #[weak]
+            appwindow,
+            move |_| {
+                appwindow
+                    .engine_config()
+                    .write()
+                    .pens_config
+                    .shaper_config
+                    .arrow_head = shaperpage.arrow_head();
+            }
+        ));
+
+        // Axes
+        imp.axes_style_row.get().connect_selected_notify(clone!(
+            #[weak(rename_to=shaperpage)]
+            self,
+            #[weak]
+            appwindow,
+            move |_| {
+                let style = shaperpage.axes_style();
+                appwindow
+                    .engine_config()
+                    .write()
+                    .pens_config
+                    .shaper_config
+                    .axes_options
+                    .style = style;
+                shaperpage
+                    .imp()
+                    .axes_tick_spacing_row
+                    .set_sensitive(style != AxesStyle::Plain);
+            }
+        ));
+
+        imp.axes_tick_spacing_row.connect_changed(clone!(
+            #[weak]
+            appwindow,
+            move |row| {
+                appwindow
+                    .engine_config()
+                    .write()
+                    .pens_config
+                    .shaper_config
+                    .axes_options
+                    .tick_spacing = row.value().round();
+            }
+        ));
 
         // Constraints
         imp.constraint_enabled_row
@@ -632,6 +713,18 @@ impl RnShaperPage {
         imp.highlight_opacity_row
             .set_value((shaper_config.highlight_opacity * 100.0).round());
 
+        // Axes
+        imp.axes_style_row
+            .set_selected(shaper_config.axes_options.style.to_u32().unwrap());
+        imp.axes_tick_spacing_row
+            .set_value(shaper_config.axes_options.tick_spacing);
+        imp.axes_tick_spacing_row
+            .set_sensitive(shaper_config.axes_options.style != AxesStyle::Plain);
+
+        // Arrow head
+        imp.arrow_head_row
+            .set_selected(shaper_config.arrow_head.to_u32().unwrap());
+
         // Constraints
         imp.constraint_enabled_row
             .set_active(shaper_config.constraints.enabled);
@@ -694,7 +787,7 @@ fn shape_builder_type_icons_get_groups() -> Vec<GroupedIconPickerGroupData> {
     ]
 }
 
-fn shape_builder_type_icons_to_display_name(icon_name: &str) -> String {
+pub(crate) fn shape_builder_type_icons_to_display_name(icon_name: &str) -> String {
     match ShapeBuilderType::from_icon_name(icon_name)
         .expect("ShapeBuilderTypePicker failed, display name of unknown icon name requested")
     {

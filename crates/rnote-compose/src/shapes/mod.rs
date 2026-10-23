@@ -21,7 +21,7 @@ pub mod shape;
 pub mod shapeable;
 
 // Re-exports
-pub use arrow::Arrow;
+pub use arrow::{Arrow, ArrowHead};
 pub use cubbez::CubicBezier;
 pub use ellipse::Ellipse;
 pub use line::Line;

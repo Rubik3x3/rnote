@@ -1,9 +1,10 @@
 // Imports
+use super::axes::{AxesOptions, Axis};
 use super::buildable::{Buildable, BuilderCreator, BuilderProgress};
 use crate::eventresult::EventPropagation;
 use crate::penevent::{PenEvent, PenState};
 use crate::penpath::Element;
-use crate::shapes::Line;
+use crate::shapes::ArrowHead;
 use crate::style::{Composer, indicators};
 use crate::{Constraints, EventResult};
 use crate::{Shape, Style};
@@ -19,6 +20,10 @@ pub struct CoordSystem2DBuilder {
     tip_y: Vector2,
     /// the tip of the x axis
     tip_x: Vector2,
+    /// Options for the axes.
+    axes_options: AxesOptions,
+    /// Style of the arrow heads.
+    arrow_head: ArrowHead,
 }
 
 impl BuilderCreator for CoordSystem2DBuilder {
@@ -26,6 +31,8 @@ impl BuilderCreator for CoordSystem2DBuilder {
         Self {
             tip_y: element.pos,
             tip_x: element.pos,
+            axes_options: AxesOptions::default(),
+            arrow_head: ArrowHead::default(),
         }
     }
 }
@@ -44,12 +51,7 @@ impl Buildable for CoordSystem2DBuilder {
                 self.tip_x = constraints.constrain(element.pos - self.tip_y) + self.tip_y;
                 BuilderProgress::InProgress
             }
-            PenEvent::Up { .. } => BuilderProgress::Finished(
-                self.state_as_lines()
-                    .iter()
-                    .map(|&line| Shape::Line(line))
-                    .collect::<Vec<Shape>>(),
-            ),
+            PenEvent::Up { .. } => BuilderProgress::Finished(self.state_as_shapes()),
             _ => BuilderProgress::InProgress,
         };
 
@@ -62,9 +64,9 @@ impl Buildable for CoordSystem2DBuilder {
 
     fn bounds(&self, style: &Style, zoom: f64) -> Option<Aabb> {
         Some(
-            self.state_as_lines()
+            self.state_as_shapes()
                 .iter()
-                .map(|line| line.composed_bounds(style))
+                .map(|shape| shape.composed_bounds(style))
                 .fold(Aabb::new_invalid(), |acc, x| acc.merged(&x))
                 .loosened(indicators::POS_INDICATOR_RADIUS / zoom),
         )
@@ -73,8 +75,8 @@ impl Buildable for CoordSystem2DBuilder {
     fn draw_styled(&self, cx: &mut piet_cairo::CairoRenderContext, style: &Style, zoom: f64) {
         cx.save().unwrap();
 
-        for line in self.state_as_lines() {
-            line.draw_composed(cx, style);
+        for shape in self.state_as_shapes() {
+            shape.draw_composed(cx, style);
         }
 
         indicators::draw_pos_indicator(cx, PenState::Up, self.tip_y, zoom);
@@ -84,29 +86,29 @@ impl Buildable for CoordSystem2DBuilder {
 }
 
 impl CoordSystem2DBuilder {
-    /// The current state as four individual lines.
-    pub fn state_as_lines(&self) -> Vec<Line> {
+    /// Sets the options for the axes.
+    pub fn with_axes_options(mut self, axes_options: AxesOptions) -> Self {
+        self.axes_options = axes_options;
+        self
+    }
+
+    /// Sets the style of the arrow heads.
+    pub fn with_arrow_head(mut self, arrow_head: ArrowHead) -> Self {
+        self.arrow_head = arrow_head;
+        self
+    }
+
+    /// The current state as shapes.
+    pub fn state_as_shapes(&self) -> Vec<Shape> {
         let center = Vector2::new(self.tip_y.x, self.tip_x.y);
-        let up_axis = Line {
-            start: center,
-            end: self.tip_y,
-        };
+        let down = Vector2::new(center.x, 2.0 * self.tip_x.y - self.tip_y.y);
+        let left = Vector2::new(2.0 * self.tip_y.x - self.tip_x.x, center.y);
 
-        let down_axis = Line {
-            start: center,
-            end: Vector2::new(center.x, 2.0 * self.tip_x.y - self.tip_y.y),
-        };
-
-        let right_axis = Line {
-            start: center,
-            end: self.tip_x,
-        };
-
-        let left_axis = Line {
-            start: center,
-            end: Vector2::new(2.0 * self.tip_y.x - self.tip_x.x, center.y),
-        };
-
-        vec![up_axis, down_axis, right_axis, left_axis]
+        let axes = [
+            Axis::new(center, self.tip_x, Some(left)),
+            Axis::new(center, self.tip_y, Some(down)),
+        ];
+        self.axes_options
+            .coord_system_shapes(&axes, &[(0, 1)], self.arrow_head)
     }
 }

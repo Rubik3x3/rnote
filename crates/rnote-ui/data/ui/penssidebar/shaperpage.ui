@@ -122,6 +122,71 @@
             </object>
           </child>
 
+          <!-- Arrow head -->
+          <child>
+            <object class="AdwPreferencesGroup" id="arrow_group">
+              <child>
+                <object class="AdwComboRow" id="arrow_head_row">
+                  <property name="title" translatable="yes">Arrow Head</property>
+                  <property name="model">
+                    <object class="GtkStringList">
+                      <items>
+                        <item translatable="yes">Open</item>
+                        <item translatable="yes">Filled</item>
+                      </items>
+                    </object>
+                  </property>
+                </object>
+              </child>
+            </object>
+          </child>
+
+          <!-- Axes -->
+          <child>
+            <object class="AdwPreferencesGroup" id="axes_group">
+              <property name="title" translatable="yes">Coordinate System</property>
+              <child>
+                <object class="AdwComboRow" id="axes_style_row">
+                  <property name="title" translatable="yes">Style</property>
+                  <property name="model">
+                    <object class="GtkStringList">
+                      <items>
+                        <item translatable="yes">Classic</item>
+                        <item translatable="yes">Arrows and Ticks</item>
+                        <item translatable="yes">Numbered</item>
+                        <item translatable="yes">Dotted Grid</item>
+                      </items>
+                    </object>
+                  </property>
+                </object>
+              </child>
+              <child>
+                <object class="AdwSpinRow" id="axes_tick_spacing_row">
+                  <property name="title" translatable="yes">Distance Between Numbers</property>
+                  <property name="subtitle" translatable="yes">Spacing of ticks, numbers and grid</property>
+                  <property name="adjustment">
+                    <object class="GtkAdjustment">
+                      <property name="lower">4</property>
+                      <property name="upper">500</property>
+                      <property name="value">24</property>
+                      <property name="step-increment">2</property>
+                      <property name="page-increment">10</property>
+                    </object>
+                  </property>
+                  <property name="numeric">true</property>
+                  <property name="digits">0</property>
+                </object>
+              </child>
+              <child>
+                <object class="AdwButtonRow">
+                  <property name="title" translatable="yes">Graph Functions…</property>
+                  <property name="start-icon-name">shapebuilder-coordsystem2d-symbolic</property>
+                  <property name="action-name">win.insert-function-graph</property>
+                </object>
+              </child>
+            </object>
+          </child>
+
           <!-- Highlighting -->
           <child>
             <object class="AdwPreferencesGroup">

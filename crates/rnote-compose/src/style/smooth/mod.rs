@@ -10,7 +10,8 @@ use crate::PenPath;
 use crate::ext::Vector2Ext;
 use crate::penpath::{self, Segment};
 use crate::shapes::{
-    Arrow, CubicBezier, Ellipse, Line, Polygon, Polyline, QuadraticBezier, Rectangle, Shapeable,
+    Arrow, ArrowHead, CubicBezier, Ellipse, Line, Polygon, Polyline, QuadraticBezier, Rectangle,
+    Shapeable,
 };
 use kurbo::Shape;
 use p2d::bounding_volume::{Aabb, BoundingVolume};
@@ -47,13 +48,17 @@ impl Composer<SmoothOptions> for Arrow {
         cx.save().unwrap();
 
         if let Some(stroke_color) = options.stroke_color {
+            let color = Into::<piet::Color>::into(stroke_color);
             let arrow = self.to_kurbo(Some(options.stroke_width));
             cx.stroke_styled(
                 arrow,
-                &Into::<piet::Color>::into(stroke_color),
+                &color,
                 options.stroke_width,
                 &options.piet_stroke_style,
             );
+            if self.head == ArrowHead::Filled {
+                cx.fill(self.head_to_kurbo(Some(options.stroke_width)), &color);
+            }
         }
 
         cx.restore().unwrap();

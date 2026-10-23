@@ -97,6 +97,8 @@ impl RnAppWindow {
         self.add_action(&action_selection_deselect_all);
         let action_clear_doc = gio::SimpleAction::new("clear-doc", None);
         self.add_action(&action_clear_doc);
+        let action_insert_function_graph = gio::SimpleAction::new("insert-function-graph", None);
+        self.add_action(&action_insert_function_graph);
         let action_new_doc = gio::SimpleAction::new("new-doc", None);
         self.add_action(&action_new_doc);
         let action_save_doc = gio::SimpleAction::new("save-doc", None);
@@ -611,6 +613,25 @@ impl RnAppWindow {
                             return;
                         };
                         dialogs::dialog_clear_doc(&appwindow, &canvas).await;
+                    }
+                ));
+            }
+        ));
+
+        // Insert function graph
+        action_insert_function_graph.connect_activate(clone!(
+            #[weak(rename_to=appwindow)]
+            self,
+            move |_, _| {
+                glib::spawn_future_local(clone!(
+                    #[weak]
+                    appwindow,
+                    async move {
+                        let Some(canvas) = appwindow.active_tab_canvas() else {
+                            return;
+                        };
+                        dialogs::functiongraph::dialog_insert_function_graph(&appwindow, &canvas)
+                            .await;
                     }
                 ));
             }
@@ -1180,53 +1201,60 @@ impl RnAppWindow {
     pub(crate) fn setup_action_accels(&self) {
         let app = self.app();
 
-        app.set_accels_for_action("win.active-tab-close", &["<Ctrl>w"]);
+        app.set_accels_for_action("win.active-tab-close", &["<Primary>w"]);
         app.set_accels_for_action("win.fullscreen", &["F11"]);
-        app.set_accels_for_action("win.keyboard-shortcuts", &["<Ctrl>question"]);
-        app.set_accels_for_action("win.toggle-overview", &["<Ctrl><Shift>o"]);
+        app.set_accels_for_action("win.keyboard-shortcuts", &["<Primary>question"]);
+        app.set_accels_for_action("win.toggle-overview", &["<Primary><Shift>o"]);
         app.set_accels_for_action("win.open-canvasmenu", &["F9"]);
         app.set_accels_for_action("win.open-appmenu", &["F10"]);
-        app.set_accels_for_action("win.open-doc", &["<Ctrl>o"]);
-        app.set_accels_for_action("win.save-doc", &["<Ctrl>s"]);
-        app.set_accels_for_action("win.save-doc-as", &["<Ctrl><Shift>s"]);
-        app.set_accels_for_action("win.new-tab", &["<Ctrl>t"]);
-        app.set_accels_for_action("win.snap-positions", &["<Ctrl><Shift>p"]);
-        app.set_accels_for_action("win.return-origin-page", &["<Ctrl>Home"]);
-        app.set_accels_for_action("win.clear-doc", &["<Ctrl>l"]);
-        app.set_accels_for_action("win.print-doc", &["<Ctrl>p"]);
-        app.set_accels_for_action("win.add-page-to-doc", &["<Ctrl><Shift>a"]);
-        app.set_accels_for_action("win.remove-page-from-doc", &["<Ctrl><Shift>r"]);
+        app.set_accels_for_action("win.open-doc", &["<Primary>o"]);
+        app.set_accels_for_action("win.save-doc", &["<Primary>s"]);
+        app.set_accels_for_action("win.save-doc-as", &["<Primary><Shift>s"]);
+        app.set_accels_for_action("win.new-tab", &["<Primary>t"]);
+        app.set_accels_for_action("win.snap-positions", &["<Primary><Shift>p"]);
+        app.set_accels_for_action("win.return-origin-page", &["<Primary>Home"]);
+        app.set_accels_for_action("win.clear-doc", &["<Primary>l"]);
+        app.set_accels_for_action("win.insert-function-graph", &["<Primary><Shift>g"]);
+        app.set_accels_for_action("win.print-doc", &["<Primary>p"]);
+        app.set_accels_for_action("win.add-page-to-doc", &["<Primary><Shift>a"]);
+        app.set_accels_for_action("win.remove-page-from-doc", &["<Primary><Shift>r"]);
         app.set_accels_for_action(
             "win.zoom-in",
-            &["<Ctrl>plus", "<Ctrl>equal", "<Ctrl>KP_Add"],
+            &["<Primary>plus", "<Primary>equal", "<Primary>KP_Add"],
         );
-        app.set_accels_for_action("win.zoom-reset", &["<Ctrl>0", "<Ctrl>KP_0"]);
-        app.set_accels_for_action("win.zoom-out", &["<Ctrl>minus", "<Ctrl>KP_Subtract"]);
-        app.set_accels_for_action("win.import-file", &["<Ctrl><Shift>i"]);
-        app.set_accels_for_action("win.undo", &["<Ctrl>z"]);
-        app.set_accels_for_action("win.redo", &["<Ctrl><Shift>z"]);
-        app.set_accels_for_action("win.clipboard-copy", &["<Ctrl>c"]);
-        app.set_accels_for_action("win.clipboard-cut", &["<Ctrl>x"]);
-        app.set_accels_for_action("win.clipboard-paste", &["<Ctrl>v"]);
-        app.set_accels_for_action("win.text-bold", &["<Ctrl>b"]);
-        app.set_accels_for_action("win.text-italic", &["<Ctrl>i"]);
-        app.set_accels_for_action("win.text-underline", &["<Ctrl>u"]);
-        app.set_accels_for_action("win.pen-style::brush", &["<Ctrl>1", "<Ctrl>KP_1"]);
-        app.set_accels_for_action("win.pen-style::shaper", &["<Ctrl>2", "<Ctrl>KP_2"]);
-        app.set_accels_for_action("win.pen-style::typewriter", &["<Ctrl>3", "<Ctrl>KP_3"]);
-        app.set_accels_for_action("win.pen-style::eraser", &["<Ctrl>4", "<Ctrl>KP_4"]);
-        app.set_accels_for_action("win.pen-style::selector", &["<Ctrl>5", "<Ctrl>KP_5"]);
-        app.set_accels_for_action("win.pen-style::tools", &["<Ctrl>6", "<Ctrl>KP_6"]);
+        app.set_accels_for_action("win.zoom-reset", &["<Primary>0", "<Primary>KP_0"]);
+        app.set_accels_for_action("win.zoom-out", &["<Primary>minus", "<Primary>KP_Subtract"]);
+        app.set_accels_for_action("win.import-file", &["<Primary><Shift>i"]);
+        app.set_accels_for_action("win.undo", &["<Primary>z"]);
+        app.set_accels_for_action("win.redo", &["<Primary><Shift>z"]);
+        app.set_accels_for_action("win.clipboard-copy", &["<Primary>c"]);
+        app.set_accels_for_action("win.clipboard-cut", &["<Primary>x"]);
+        app.set_accels_for_action("win.clipboard-paste", &["<Primary>v"]);
+        app.set_accels_for_action("win.text-bold", &["<Primary>b"]);
+        app.set_accels_for_action("win.text-italic", &["<Primary>i"]);
+        app.set_accels_for_action("win.text-underline", &["<Primary>u"]);
+        app.set_accels_for_action("win.pen-style::brush", &["<Primary>1", "<Primary>KP_1"]);
+        app.set_accels_for_action("win.pen-style::shaper", &["<Primary>2", "<Primary>KP_2"]);
+        app.set_accels_for_action(
+            "win.pen-style::typewriter",
+            &["<Primary>3", "<Primary>KP_3"],
+        );
+        app.set_accels_for_action("win.pen-style::eraser", &["<Primary>4", "<Primary>KP_4"]);
+        app.set_accels_for_action("win.pen-style::selector", &["<Primary>5", "<Primary>KP_5"]);
+        app.set_accels_for_action("win.pen-style::tools", &["<Primary>6", "<Primary>KP_6"]);
         (1..=9).for_each(|i| {
             app.set_accels_for_action(
                 &format!("win.set-color-{i}"),
-                &[&format!("<Ctrl><Alt>{i}"), &format!("<Ctrl><Alt>KP_{i}")],
+                &[
+                    &format!("<Primary><Alt>{i}"),
+                    &format!("<Primary><Alt>KP_{i}"),
+                ],
             )
         });
 
         // shortcuts for devel build
         if config::PROFILE.to_lowercase().as_str() == "devel" {
-            app.set_accels_for_action("win.visual-debug", &["<Ctrl><Shift>v"]);
+            app.set_accels_for_action("win.visual-debug", &["<Primary><Shift>v"]);
         }
     }
 

@@ -421,10 +421,8 @@ impl Default for RnColorPicker {
     }
 }
 
-pub(crate) static STROKE_COLOR_DEFAULT: Lazy<Color> =
-    Lazy::new(|| Color::from(color::GNOME_DARKS[4]));
-pub(crate) static FILL_COLOR_DEFAULT: Lazy<Color> =
-    Lazy::new(|| Color::from(color::GNOME_BLUES[1]));
+pub(crate) static STROKE_COLOR_DEFAULT: Lazy<Color> = Lazy::new(|| color::soft::GRAPHITE);
+pub(crate) static FILL_COLOR_DEFAULT: Lazy<Color> = Lazy::new(|| color::soft::BLUE);
 
 impl RnColorPicker {
     pub(crate) fn new() -> Self {

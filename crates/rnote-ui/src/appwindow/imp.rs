@@ -323,6 +323,7 @@ impl ObjectImpl for RnAppWindow {
                 self.overlays.penpicker().set_visible(!focus_mode);
                 self.overlays.colorpicker().set_visible(!focus_mode);
                 self.overlays.sidebar_box().set_visible(!focus_mode);
+                self.overlays.quickaccessbar().set_visible(!focus_mode);
             }
             "devel-mode" => {
                 let devel_mode = value
@@ -719,6 +720,7 @@ impl RnAppWindow {
                 .set_placement(CornerType::TopRight);
 
             obj.overlays().sidebar_box().set_halign(Align::Start);
+            obj.overlays().quickaccessbar().set_side(false);
             obj.overlays()
                 .sidebar_scroller()
                 .set_placement(CornerType::TopRight);
@@ -831,6 +833,7 @@ impl RnAppWindow {
                 .set_placement(CornerType::TopLeft);
 
             obj.overlays().sidebar_box().set_halign(Align::End);
+            obj.overlays().quickaccessbar().set_side(true);
             obj.overlays()
                 .sidebar_scroller()
                 .set_placement(CornerType::TopLeft);

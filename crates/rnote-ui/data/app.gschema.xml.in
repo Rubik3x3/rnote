@@ -30,48 +30,48 @@
       </description>
     </key>
     <key name="active-stroke-color" type="(dddd)">
-      <default>(0.0, 0.0, 0.0, 1.0)</default>
-      <summary>the active stroke color (default: black)</summary>
+      <default>(0.169, 0.176, 0.192, 1.0)</default>
+      <summary>the active stroke color (default: graphite)</summary>
     </key>
     <key name="active-fill-color" type="(dddd)">
       <default>(0.0, 0.0, 0.0, 0.0)</default>
       <summary>the active fill color (default: transparent)</summary>
     </key>
     <key name="colorpicker-color-1" type="(dddd)">
-      <default>(0.0, 0.0, 0.0, 1.0)</default>
-      <summary>the colorpicker palette color 1 (default: black)</summary>
+      <default>(0.169, 0.176, 0.192, 1.0)</default>
+      <summary>the colorpicker palette color 1 (default: graphite)</summary>
     </key>
     <key name="colorpicker-color-2" type="(dddd)">
-      <default>(1.0, 1.0, 1.0, 1.0)</default>
-      <summary>the colorpicker palette color 2 (default: white)</summary>
+      <default>(0.965, 0.961, 0.949, 1.0)</default>
+      <summary>the colorpicker palette color 2 (default: warm white)</summary>
     </key>
     <key name="colorpicker-color-3" type="(dddd)">
       <default>(0.0, 0.0, 0.0, 0.0)</default>
       <summary>the colorpicker palette color 3 (default: transparent)</summary>
     </key>
     <key name="colorpicker-color-4" type="(dddd)">
-      <default>(0.597, 0.753, 0.941, 1.0)</default>
-      <summary>the colorpicker palette color 4 (default: blue 1)</summary>
+      <default>(0.239, 0.490, 0.847, 1.0)</default>
+      <summary>the colorpicker palette color 4 (default: blue)</summary>
     </key>
     <key name="colorpicker-color-5" type="(dddd)">
-      <default>(0.101, 0.371, 0.703, 1.0)</default>
-      <summary>the colorpicker palette color 5 (default: blue 5)</summary>
+      <default>(0.180, 0.620, 0.420, 1.0)</default>
+      <summary>the colorpicker palette color 5 (default: green)</summary>
     </key>
     <key name="colorpicker-color-6" type="(dddd)">
-      <default>(0.148, 0.632, 0.410, 1.0)</default>
-      <summary>the colorpicker palette color 6 (default: green 5)</summary>
+      <default>(0.890, 0.655, 0.184, 1.0)</default>
+      <summary>the colorpicker palette color 6 (default: amber)</summary>
     </key>
     <key name="colorpicker-color-7" type="(dddd)">
-      <default>(0.957, 0.757, 0.066, 1.0)</default>
-      <summary>the colorpicker palette color 7 (default: yellow 4)</summary>
+      <default>(0.886, 0.439, 0.227, 1.0)</default>
+      <summary>the colorpicker palette color 7 (default: orange)</summary>
     </key>
     <key name="colorpicker-color-8" type="(dddd)">
-      <default>(0.898, 0.378, 0.0, 1.0)</default>
-      <summary>the colorpicker palette color 8 (default: orange 4)</summary>
+      <default>(0.831, 0.263, 0.310, 1.0)</default>
+      <summary>the colorpicker palette color 8 (default: red)</summary>
     </key>
     <key name="colorpicker-color-9" type="(dddd)">
-      <default>(0.644, 0.113, 0.175, 1.0)</default>
-      <summary>the colorpicker palette color 9 (default: red 5)</summary>
+      <default>(0.549, 0.361, 0.784, 1.0)</default>
+      <summary>the colorpicker palette color 9 (default: violet)</summary>
     </key>
     <key name="brush-width-1" type="d">
       <default>2.0</default>
@@ -136,6 +136,10 @@
     <key name="righthanded" type="b">
       <default>true</default>
       <summary>Whether the user is righthanded (or lefthanded)</summary>
+    </key>
+    <key name="quick-access-items" type="as">
+      <default>['shape-rectangle', 'shape-ellipse', 'shape-arrow', 'shape-coord-system-2d', 'function-graph']</default>
+      <summary>The items of the quick access bar, in their order</summary>
     </key>
     <key name="block-pinch-zoom" type="b">
       <default>false</default>

@@ -457,13 +457,19 @@ pub(crate) fn retrieve_button_shortcut_key(
     }
 }
 
+/// The platform's primary modifier: Command on macOS, Control elsewhere.
+#[cfg(target_os = "macos")]
+pub(crate) const PRIMARY_MODIFIER_MASK: gdk::ModifierType = gdk::ModifierType::META_MASK;
+#[cfg(not(target_os = "macos"))]
+pub(crate) const PRIMARY_MODIFIER_MASK: gdk::ModifierType = gdk::ModifierType::CONTROL_MASK;
+
 pub(crate) fn retrieve_modifier_keys(modifier: gdk::ModifierType) -> HashSet<ModifierKey> {
     let mut keys = HashSet::new();
 
     if modifier.contains(gdk::ModifierType::SHIFT_MASK) {
         keys.insert(ModifierKey::KeyboardShift);
     }
-    if modifier.contains(gdk::ModifierType::CONTROL_MASK) {
+    if modifier.contains(PRIMARY_MODIFIER_MASK) {
         keys.insert(ModifierKey::KeyboardCtrl);
     }
     if modifier.contains(gdk::ModifierType::ALT_MASK) {
@@ -487,7 +493,7 @@ pub(crate) fn retrieve_keyboard_shortcut_key(
     modifier: gdk::ModifierType,
 ) -> Option<ShortcutKey> {
     match gdk_key {
-        gdk::Key::space if modifier.contains(gdk::ModifierType::CONTROL_MASK) => {
+        gdk::Key::space if modifier.contains(PRIMARY_MODIFIER_MASK) => {
             Some(ShortcutKey::KeyboardCtrlSpace)
         }
         _ => None,

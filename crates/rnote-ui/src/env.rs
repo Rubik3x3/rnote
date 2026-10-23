@@ -131,7 +131,87 @@ pub(crate) fn setup_env() -> anyhow::Result<()> {
                 );
             }
         }
+
+        // Pango renders through CoreText on macOS, which does not look into the fontconfig directories the bundled
+        // fonts are installed to, so they would silently fall back to the system font.
+        if let Err(e) = macos_register_bundled_fonts() {
+            eprintln!("failed to register bundled fonts, Err: {e:?}");
+        }
     }
+    Ok(())
+}
+
+/// Make the fonts shipped with the app available to CoreText for the lifetime of this process.
+///
+/// Must be called before the Pango font map is created.
+#[cfg(target_os = "macos")]
+fn macos_register_bundled_fonts() -> anyhow::Result<()> {
+    use std::ffi::c_void;
+    use std::os::unix::ffi::OsStrExt;
+
+    const K_CT_FONT_MANAGER_SCOPE_PROCESS: u32 = 1;
+
+    #[link(name = "CoreFoundation", kind = "framework")]
+    unsafe extern "C" {
+        fn CFURLCreateFromFileSystemRepresentation(
+            allocator: *const c_void,
+            buffer: *const u8,
+            buf_len: isize,
+            is_directory: u8,
+        ) -> *const c_void;
+        fn CFRelease(cf: *const c_void);
+    }
+    #[link(name = "CoreText", kind = "framework")]
+    unsafe extern "C" {
+        fn CTFontManagerRegisterFontsForURL(
+            font_url: *const c_void,
+            scope: u32,
+            error: *mut *const c_void,
+        ) -> u8;
+    }
+
+    let fonts_dir = data_dir()?
+        .join("fonts")
+        .join(config::APP_NAME.to_string() + "-fonts");
+
+    for entry in std::fs::read_dir(fonts_dir)? {
+        let path = entry?.path();
+        if !path
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("ttf") || ext.eq_ignore_ascii_case("otf"))
+        {
+            continue;
+        }
+        let bytes = path.as_os_str().as_bytes();
+        // SAFETY: the buffer is valid for the given length, the returned url is released after use and the
+        // error out-parameter is allowed to be left unused.
+        unsafe {
+            let url = CFURLCreateFromFileSystemRepresentation(
+                std::ptr::null(),
+                bytes.as_ptr(),
+                bytes.len() as isize,
+                0,
+            );
+            if url.is_null() {
+                continue;
+            }
+            let mut error = std::ptr::null();
+            if CTFontManagerRegisterFontsForURL(url, K_CT_FONT_MANAGER_SCOPE_PROCESS, &mut error)
+                == 0
+            {
+                eprintln!("failed to register font '{}'", path.display());
+                if !error.is_null() {
+                    CFRelease(error);
+                }
+            }
+            CFRelease(url);
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn macos_register_bundled_fonts() -> anyhow::Result<()> {
     Ok(())
 }
 

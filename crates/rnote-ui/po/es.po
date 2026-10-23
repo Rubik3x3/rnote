@@ -970,6 +970,24 @@ msgstr "Láser"
 msgid "Font Chooser"
 msgstr "Selector de fuente"
 
+msgid "Quick Fonts"
+msgstr "Fuentes rápidas"
+
+msgid "Hand-drawn"
+msgstr "Dibujada a mano"
+
+msgid "Handwriting"
+msgstr "Manuscrita"
+
+msgid "Easy to read"
+msgstr "Fácil de leer"
+
+msgid "Sans"
+msgstr "Sans"
+
+msgid "Serif"
+msgstr "Serif"
+
 #: crates/rnote-ui/data/ui/penssidebar/typewriterpage.ui:28
 msgid "Edit Font Size"
 msgstr "Editar tamaño de fuente"

@@ -1,9 +1,11 @@
 // Imports
 use crate::RnAppWindow;
+use gettextrs::gettext;
 use gtk4::{
-    Button, CompositeTemplate, EmojiChooser, FontDialog, MenuButton, SpinButton, ToggleButton,
-    Widget, glib, glib::clone, pango, prelude::*, subclass::prelude::*,
+    Button, CompositeTemplate, EmojiChooser, FontDialog, Label, MenuButton, Popover, SpinButton,
+    ToggleButton, Widget, glib, glib::clone, pango, prelude::*, subclass::prelude::*,
 };
+use rnote_engine::pens::pensconfig::TypewriterConfig;
 use rnote_engine::strokes::textstroke::{TextAlignment, TextAttribute, TextStyle};
 use std::cell::RefCell;
 use tracing::debug;
@@ -18,6 +20,12 @@ mod imp {
 
         #[template_child]
         pub(crate) fontdialog_button: TemplateChild<Button>,
+        #[template_child]
+        pub(crate) quickfonts_menubutton: TemplateChild<MenuButton>,
+        #[template_child]
+        pub(crate) quickfonts_popover: TemplateChild<Popover>,
+        #[template_child]
+        pub(crate) quickfonts_box: TemplateChild<gtk4::Box>,
         #[template_child]
         pub(crate) font_size_spinbutton: TemplateChild<SpinButton>,
         #[template_child]
@@ -86,6 +94,51 @@ impl RnTypewriterPage {
         glib::Object::new()
     }
 
+    /// Fonts offered in the quick fonts popover, as (font family, description).
+    ///
+    /// The hand-drawn ones are bundled with the app.
+    fn quick_fonts() -> [(&'static str, String); 6] {
+        [
+            (TypewriterConfig::FONT_FAMILY_DEFAULT, gettext("Hand-drawn")),
+            ("Grape Nuts", gettext("Handwriting")),
+            ("TT2020Base", gettext("Typewriter")),
+            ("OpenDyslexic", gettext("Easy to read")),
+            ("sans-serif", gettext("Sans")),
+            ("serif", gettext("Serif")),
+        ]
+    }
+
+    fn set_font_family(&self, appwindow: &RnAppWindow, font_family: String) {
+        let Some(canvas) = appwindow.active_tab_canvas() else {
+            return;
+        };
+        self.imp()
+            .quickfonts_menubutton
+            .set_child(Some(&Self::font_preview_label("Aa", &font_family)));
+        appwindow
+            .engine_config()
+            .write()
+            .pens_config
+            .typewriter_config
+            .text_style
+            .font_family
+            .clone_from(&font_family);
+        let widget_flags = canvas
+            .engine_mut()
+            .text_selection_change_style(|style| style.font_family = font_family);
+        appwindow.handle_widget_flags(widget_flags, &canvas);
+    }
+
+    fn font_preview_label(text: &str, font_family: &str) -> Label {
+        let attrs = pango::AttrList::new();
+        attrs.insert(pango::AttrFontDesc::new(
+            &pango::FontDescription::from_string(font_family),
+        ));
+        let label = Label::new(Some(text));
+        label.set_attributes(Some(&attrs));
+        label
+    }
+
     pub(crate) fn emojichooser_menubutton(&self) -> MenuButton {
         self.imp().emojichooser_menubutton.get()
     }
@@ -121,23 +174,37 @@ impl RnTypewriterPage {
             glib::spawn_future_local(clone!(#[weak] typewriterpage, #[weak] appwindow , async move {
                 let dialog = FontDialog::builder().modal(false).build();
                 let prev_picked_font_family = typewriterpage.imp().prev_picked_font_family.borrow().clone();
-                let Some(canvas) = appwindow.active_tab_canvas() else {
-                    return;
-                };
 
                 match dialog.choose_family_future(Some(&appwindow), prev_picked_font_family.as_ref()).await {
                     Ok(new_font_family) => {
                         let font_family_name = new_font_family.name().to_string();
 
                         typewriterpage.imp().prev_picked_font_family.borrow_mut().replace(new_font_family);
-                        appwindow.engine_config().write().pens_config.typewriter_config.text_style.font_family.clone_from(&font_family_name);
-                        let widget_flags = canvas.engine_mut().text_selection_change_style(|style| {style.font_family = font_family_name});
-                        appwindow.handle_widget_flags(widget_flags, &canvas);
+                        typewriterpage.set_font_family(&appwindow, font_family_name);
                     }
                     Err(e) => debug!("Did not choose new font family (Error or dialog dismissed by user), Err: {e:?}"),
                 }
             }));
         }));
+
+        // Quick fonts
+        for (font_family, description) in Self::quick_fonts() {
+            let label = Self::font_preview_label(&description, font_family);
+            label.set_xalign(0.0);
+            let button = Button::builder().child(&label).build();
+            button.add_css_class("flat");
+            button.connect_clicked(clone!(
+                #[weak(rename_to=typewriterpage)]
+                self,
+                #[weak]
+                appwindow,
+                move |_| {
+                    typewriterpage.imp().quickfonts_popover.popdown();
+                    typewriterpage.set_font_family(&appwindow, font_family.to_string());
+                }
+            ));
+            imp.quickfonts_box.append(&button);
+        }
 
         // Font size
         imp.font_size_spinbutton.set_increments(1.0, 5.0);
@@ -324,6 +391,11 @@ impl RnTypewriterPage {
 
         imp.font_size_spinbutton
             .set_value(typewriter_config.text_style.font_size);
+        imp.quickfonts_menubutton
+            .set_child(Some(&Self::font_preview_label(
+                "Aa",
+                &typewriter_config.text_style.font_family,
+            )));
 
         self.set_alignment(typewriter_config.text_style.alignment);
     }

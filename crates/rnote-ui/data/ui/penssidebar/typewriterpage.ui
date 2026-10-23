@@ -19,6 +19,25 @@
       </object>
     </child>
     <child>
+      <object class="GtkMenuButton" id="quickfonts_menubutton">
+        <property name="direction">left</property>
+        <property name="popover">quickfonts_popover</property>
+        <property name="tooltip-text" translatable="yes">Quick Fonts</property>
+        <property name="label">Aa</property>
+        <style>
+          <class name="flat" />
+        </style>
+      </object>
+    </child>
+    <object class="GtkPopover" id="quickfonts_popover">
+      <child>
+        <object class="GtkBox" id="quickfonts_box">
+          <property name="orientation">vertical</property>
+          <property name="spacing">2</property>
+        </object>
+      </child>
+    </object>
+    <child>
       <object class="GtkSeparator">
         <property name="orientation">vertical</property>
       </object>

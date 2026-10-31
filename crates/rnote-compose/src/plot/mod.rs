@@ -94,10 +94,7 @@ impl FunctionGraph {
         axes_options: AxesOptions,
         arrow_head: ArrowHead,
     ) -> Vec<Shape> {
-        let options = AxesOptions {
-            tick_spacing: self.unit,
-            ..axes_options
-        };
+        let options = axes_options.with_tick_spacing(self.unit);
         options.coord_system_shapes(&self.axes(origin), &[(0, 1)], arrow_head)
     }
 

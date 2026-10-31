@@ -253,6 +253,13 @@ impl RnAppWindow {
         self.imp().sidebar.get()
     }
 
+    /// Whether the toolbars fade out while drawing.
+    pub(crate) fn autohide_docks(&self) -> bool {
+        self.app()
+            .app_settings_with_key("autohide-docks")
+            .is_none_or(|settings| settings.boolean("autohide-docks"))
+    }
+
     pub(crate) fn overlays(&self) -> RnOverlays {
         self.imp().overlays.get()
     }
@@ -289,6 +296,13 @@ impl RnAppWindow {
             }
         }
 
+        // Save pending changes when switching to another app
+        self.connect_is_active_notify(|appwindow| {
+            if !appwindow.is_active() {
+                appwindow.autosave_all_now();
+            }
+        });
+
         // An initial tab (canvas).
         if add_initial_tab {
             self.add_initial_tab();
@@ -321,6 +335,8 @@ impl RnAppWindow {
             .into_iter()
             .map(|p| p.child().downcast::<RnCanvasWrapper>().unwrap())
         {
+            // The documents were saved or intentionally discarded at this point
+            self.finish_document(&tab.canvas());
             let _ = tab.canvas().engine_mut().set_active(false);
             tab.canvas()
                 .engine_ref()
@@ -347,6 +363,7 @@ impl RnAppWindow {
         if widget_flags.store_modified {
             canvas.set_unsaved_changes(true);
             canvas.set_empty(false);
+            self.schedule_autosave(canvas);
         }
         if widget_flags.view_modified {
             canvas.queue_allocate();

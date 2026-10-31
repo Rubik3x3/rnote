@@ -165,6 +165,18 @@
             </child>
             <child>
               <object class="GtkShortcutsShortcut">
+                <property name="title" translatable="yes">Go to Writing Zoom</property>
+                <property name="accelerator">&lt;primary&gt;e</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkShortcutsShortcut">
+                <property name="title" translatable="yes">Save Current Zoom as Writing Zoom</property>
+                <property name="accelerator">&lt;primary&gt;&lt;shift&gt;e</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkShortcutsShortcut">
                 <property name="title" translatable="yes">Return to Origin Page</property>
                 <property name="accelerator">&lt;primary&gt;Home</property>
               </object>

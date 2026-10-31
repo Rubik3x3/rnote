@@ -178,6 +178,12 @@
                 </object>
               </child>
               <child>
+                <object class="AdwSwitchRow" id="axes_scale_with_zoom_row">
+                  <property name="title" translatable="yes">Keep Size on Screen</property>
+                  <property name="subtitle" translatable="yes">Ticks, numbers and function graphs look the same at every zoom level</property>
+                </object>
+              </child>
+              <child>
                 <object class="AdwButtonRow">
                   <property name="title" translatable="yes">Graph Functions…</property>
                   <property name="start-icon-name">shapebuilder-coordsystem2d-symbolic</property>

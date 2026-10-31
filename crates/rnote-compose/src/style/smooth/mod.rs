@@ -263,9 +263,9 @@ impl Composer<SmoothOptions> for PenPath {
         cx.save().unwrap();
 
         for seg in self.segments.iter() {
-            if seg.end().pos == self.start.pos {
-                continue;
-            } else {
+            // Segments ending at the start are not skipped, closed paths end there.
+            // Segments without length compose to nothing.
+            if seg.end().pos != self.start.pos {
                 single_pos = false;
             }
 

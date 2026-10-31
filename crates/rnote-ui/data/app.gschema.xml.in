@@ -125,6 +125,18 @@
       <default>120</default>
       <summary>the sec interval for the autosave</summary>
     </key>
+    <key name="autosave-on-change" type="b">
+      <default>true</default>
+      <summary>Save shortly after every change, in addition to the interval</summary>
+    </key>
+    <key name="autohide-docks" type="b">
+      <default>true</default>
+      <summary>Fade out the toolbars while drawing</summary>
+    </key>
+    <key name="writing-zoom" type="d">
+      <default>1.0</default>
+      <summary>The preferred zoom for writing, restored with a shortcut</summary>
+    </key>
     <key name="show-scrollbars" type="b">
       <default>false</default>
       <summary>Whether the canvas scrollbars are shown</summary>

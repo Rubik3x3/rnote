@@ -135,6 +135,36 @@ class SettingsScreen extends StatelessWidget {
                 onChanged: (v) => s.smoothing = v,
               ),
               SwitchListTile(
+                title: const Text('Reconocer formas al mantener'),
+                subtitle: const Text('Mantené el lápiz quieto al final del trazo para convertirlo en línea, '
+                    'círculo, rectángulo, polígono, parábola o curva suave. Si seguís moviéndolo después de una '
+                    'pausa, continúa el trazo; deshacer devuelve el trazo a mano.'),
+                value: s.shapeRecognition,
+                onChanged: (v) => s.shapeRecognition = v,
+              ),
+              if (s.shapeRecognition)
+                _sliderTile(
+                  context,
+                  title: 'Tiempo de espera',
+                  value: s.shapeHoldMs.toDouble(),
+                  min: 200,
+                  max: 1500,
+                  divisions: 26,
+                  format: (v) => '${v.round()} ms',
+                  onChanged: (v) => s.shapeHoldMs = v.round(),
+                ),
+              if (s.shapeRecognition)
+                _sliderTile(
+                  context,
+                  title: 'Tolerancia de círculo',
+                  value: s.shapeCircleTolerance,
+                  min: 0,
+                  max: 0.5,
+                  divisions: 10,
+                  format: (v) => '${(v * 100).round()} %',
+                  onChanged: (v) => s.shapeCircleTolerance = v,
+                ),
+              SwitchListTile(
                 title: const Text('Usar presión del dedo'),
                 subtitle: const Text('Sólo en pantallas que la reportan'),
                 value: s.touchPressure,
@@ -208,7 +238,14 @@ class SettingsScreen extends StatelessWidget {
               ),
 
               _header(context, 'Guardado'),
-              _sliderTile(
+              SwitchListTile(
+                title: const Text('Guardar después de cada cambio'),
+                subtitle: const Text('Guarda el documento un instante después de cada trazo'),
+                value: s.autosaveOnChange,
+                onChanged: (v) => s.autosaveOnChange = v,
+              ),
+              if (!s.autosaveOnChange)
+                _sliderTile(
                 context,
                 title: 'Autoguardado',
                 value: s.autosaveSeconds.toDouble(),

@@ -97,7 +97,7 @@ impl std::ops::DerefMut for SolidOptions {
     }
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default, rename = "brush_config")]
 pub struct BrushConfig {
     #[serde(rename = "builder_type")]
@@ -110,11 +110,40 @@ pub struct BrushConfig {
     pub solid_options: SolidOptions,
     #[serde(rename = "textured_options")]
     pub textured_options: TexturedOptions,
+    /// Turn strokes into ideal shapes when the pen is held still at their end.
+    #[serde(rename = "shape_recognition")]
+    pub shape_recognition: bool,
+    /// How long the pen must be held still before the stroke is recognized, in milliseconds.
+    #[serde(rename = "shape_recognition_delay_ms")]
+    pub shape_recognition_delay_ms: u32,
+    /// How much a circle may be squashed and still become a circle instead of an ellipse, from 0 to 1.
+    #[serde(rename = "shape_circle_tolerance")]
+    pub shape_circle_tolerance: f64,
+}
+
+impl Default for BrushConfig {
+    fn default() -> Self {
+        Self {
+            builder_type: PenPathBuilderType::default(),
+            style: BrushStyle::default(),
+            marker_options: MarkerOptions::default(),
+            solid_options: SolidOptions::default(),
+            textured_options: TexturedOptions::default(),
+            shape_recognition: true,
+            shape_recognition_delay_ms: Self::SHAPE_RECOGNITION_DELAY_DEFAULT,
+            shape_circle_tolerance:
+                rnote_compose::recognition::RecognitionOptions::CIRCLE_TOLERANCE_DEFAULT,
+        }
+    }
 }
 
 impl BrushConfig {
     pub const STROKE_WIDTH_MIN: f64 = 0.1;
     pub const STROKE_WIDTH_MAX: f64 = 500.0;
+    pub const SHAPE_RECOGNITION_DELAY_DEFAULT: u32 = 500;
+    pub const SHAPE_RECOGNITION_DELAY_MIN: u32 = 200;
+    pub const SHAPE_RECOGNITION_DELAY_MAX: u32 = 2000;
+    pub const SHAPE_CIRCLE_TOLERANCE_MAX: f64 = 0.5;
 
     pub(crate) fn layer_for_current_options(&self) -> StrokeLayer {
         match &self.style {

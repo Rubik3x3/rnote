@@ -92,6 +92,17 @@ mod imp {
         pub(crate) show_drawing_cursor: Cell<bool>,
 
         pub(crate) last_export_dir: RefCell<Option<gio::File>>,
+
+        /// Incremented on every change, so a save can tell if the document changed while it was running.
+        pub(crate) modification_count: Cell<u64>,
+        pub(crate) last_modified: Cell<Option<std::time::Instant>>,
+        pub(crate) autosave_source: RefCell<Option<glib::SourceId>>,
+        pub(crate) recovery_id: RefCell<Option<String>>,
+        /// Incremented when the recovery file is discarded, so a recovery save running meanwhile can undo itself.
+        pub(crate) recovery_generation: Cell<u64>,
+        pub(crate) recovery_save_in_progress: Cell<bool>,
+        /// The file that was already backed up in this session, before it got overwritten.
+        pub(crate) backed_up_file: RefCell<Option<std::path::PathBuf>>,
     }
 
     impl Default for RnCanvas {
@@ -189,6 +200,14 @@ mod imp {
                 show_drawing_cursor: Cell::new(false),
 
                 last_export_dir: RefCell::new(None),
+
+                modification_count: Cell::new(0),
+                last_modified: Cell::new(None),
+                autosave_source: RefCell::new(None),
+                recovery_id: RefCell::new(None),
+                recovery_generation: Cell::new(0),
+                recovery_save_in_progress: Cell::new(false),
+                backed_up_file: RefCell::new(None),
             }
         }
     }
@@ -225,6 +244,8 @@ mod imp {
             obj.add_controller(self.pointer_controller.clone());
             obj.add_controller(self.key_controller.clone());
             obj.add_controller(self.drop_target.clone());
+
+            crate::recovery::register_canvas(&obj);
 
             // receive and handle engine tasks
             let engine_task_handler_handle = glib::spawn_future_local(clone!(
@@ -525,6 +546,14 @@ mod imp {
                             pen_state.get(),
                             stylus_active.get(),
                         );
+                    let drawing = new_state == PenState::Down;
+                    if drawing != (pen_state.get() == PenState::Down)
+                        && let Some(appwindow) = canvas.root().and_downcast::<RnAppWindow>()
+                    {
+                        appwindow
+                            .overlays()
+                            .set_drawing(drawing, appwindow.autohide_docks());
+                    }
                     pen_state.set(new_state);
                     stylus_active.set(new_stylus_active);
                     propagation
@@ -809,6 +838,10 @@ impl RnCanvas {
 
     #[allow(unused)]
     pub(crate) fn set_unsaved_changes(&self, unsaved_changes: bool) {
+        if unsaved_changes {
+            let count = &self.imp().modification_count;
+            count.set(count.get().wrapping_add(1));
+        }
         if self.imp().unsaved_changes.get() != unsaved_changes {
             self.set_property("unsaved-changes", unsaved_changes.to_value());
         }
@@ -957,6 +990,11 @@ impl RnCanvas {
     }
 
     /// Mutable borrow of the engine.
+    /// Counts the changes to the document, see [RnCanvas::set_unsaved_changes].
+    pub(crate) fn modification_count(&self) -> u64 {
+        self.imp().modification_count.get()
+    }
+
     pub(crate) fn engine_mut(&self) -> RefMut<'_, Engine> {
         self.imp().engine.borrow_mut()
     }

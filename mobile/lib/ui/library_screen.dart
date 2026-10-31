@@ -218,7 +218,14 @@ class _LibraryScreenState extends State<LibraryScreen> with WidgetsBindingObserv
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Rnote'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset('assets/logo.png', width: 30, height: 30, filterQuality: FilterQuality.medium),
+            const SizedBox(width: 10),
+            const Text('RnotePro'),
+          ],
+        ),
         actions: [
           ListenableBuilder(
             listenable: sync,

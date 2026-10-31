@@ -42,6 +42,10 @@ mod imp {
         #[template_child]
         pub(crate) general_autosave_interval_secs_row: TemplateChild<adw::SpinRow>,
         #[template_child]
+        pub(crate) general_autosave_on_change_row: TemplateChild<adw::SwitchRow>,
+        #[template_child]
+        pub(crate) general_autohide_docks_row: TemplateChild<adw::SwitchRow>,
+        #[template_child]
         pub(crate) general_show_scrollbars_row: TemplateChild<adw::SwitchRow>,
         #[template_child]
         pub(crate) general_optimize_epd_row: TemplateChild<adw::SwitchRow>,
@@ -581,6 +585,28 @@ impl RnSettingsPanel {
             )
             .sync_create()
             .build();
+
+        imp.general_autosave_row
+            .get()
+            .bind_property("active", &*imp.general_autosave_on_change_row, "sensitive")
+            .sync_create()
+            .build();
+
+        if let Some(app_settings) = appwindow.app().app_settings_with_key("autosave-on-change") {
+            app_settings
+                .bind(
+                    "autosave-on-change",
+                    &*imp.general_autosave_on_change_row,
+                    "active",
+                )
+                .build();
+        }
+
+        if let Some(app_settings) = appwindow.app().app_settings_with_key("autohide-docks") {
+            app_settings
+                .bind("autohide-docks", &*imp.general_autohide_docks_row, "active")
+                .build();
+        }
 
         imp.general_autosave_interval_secs_row
             .get()

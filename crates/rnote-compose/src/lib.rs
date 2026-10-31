@@ -21,6 +21,8 @@ pub mod penevent;
 pub mod penpath;
 /// Plotting of functions.
 pub mod plot;
+/// Recognition of hand-drawn strokes as ideal shapes
+pub mod recognition;
 /// utilities for serializing / deserializing
 pub mod serialize;
 /// module for shapes

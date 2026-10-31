@@ -232,6 +232,8 @@ impl RnCanvas {
             self.set_save_in_progress(false);
             anyhow::anyhow!("Could not retrieve basename for file: `{file:?}`.")
         })?;
+        // Changes made while saving are not part of the saved file and must keep the document marked as unsaved
+        let modification_count = self.modification_count();
         let rnote_bytes_receiver = self
             .engine_ref()
             .save_as_rnote_bytes(basename.to_string_lossy().to_string());
@@ -247,6 +249,8 @@ impl RnCanvas {
 
         let file_write_operation = async {
             let bytes = rnote_bytes_receiver.await??;
+            // Keep the version before this session, in case the document gets overwritten with something unwanted
+            self.backup_before_overwrite(&filepath).await;
             // The `output_file_expect_write` should theoretically be reset to `false` by the file watcher later.
             self.set_output_file_expect_write(true);
             crate::utils::atomic_save_to_file_future(&filepath, bytes).await
@@ -269,7 +273,10 @@ impl RnCanvas {
             // first time or saving as another filename, until the subsequent save at least.
             self.set_output_file_expect_write(false);
         }
-        self.set_unsaved_changes(false);
+        if self.modification_count() == modification_count {
+            self.set_unsaved_changes(false);
+            self.discard_recovery();
+        }
         self.set_save_in_progress(false);
 
         Ok(true)

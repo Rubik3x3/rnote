@@ -23,6 +23,14 @@ impl Engine {
                 shaper_config.arrow_head,
             )
         };
+        // Sizes are meant on screen, so the graph looks the same whatever the zoom is.
+        let zoom = self.camera.total_zoom();
+        let mut graph = graph.clone();
+        if axes_options.scale_with_zoom && zoom.is_finite() && zoom > 0.0 {
+            graph.unit /= zoom;
+            axes_style.set_stroke_width(axes_style.stroke_width() / zoom);
+        }
+        let axes_options = axes_options.for_zoom(zoom);
         let origin = graph.origin_for_center(self.camera.viewport_center());
 
         let mut strokes = Vec::new();

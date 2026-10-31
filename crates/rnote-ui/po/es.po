@@ -3197,3 +3197,81 @@ msgstr "blanco"
 #~ msgstr ""
 #~ "Establece si las barras de desplazamiento del lienzo se ocultan "
 #~ "permanentemente."
+
+msgid "Shape Recognition"
+msgstr "Reconocimiento de formas"
+
+msgid "Hold the pen still at the end of a stroke to turn it into a perfect shape. Moving on after a pause keeps drawing, undo brings back the hand-drawn stroke."
+msgstr "Mantené el lápiz quieto al final del trazo para convertirlo en una figura perfecta. Si seguís moviéndolo después de una pausa, continúa el trazo; deshacer devuelve el trazo a mano."
+
+msgid "Recognize Shapes When Holding"
+msgstr "Reconocer formas al mantener"
+
+msgid "Hold Duration"
+msgstr "Tiempo de espera"
+
+msgid "Milliseconds the pen has to be held still"
+msgstr "Milisegundos que el lápiz debe quedar quieto"
+
+msgid "Keep Size on Screen"
+msgstr "Mantener tamaño en pantalla"
+
+msgid "Ticks, numbers and function graphs look the same at every zoom level"
+msgstr "Marcas, números y gráficos de funciones se ven igual con cualquier zoom"
+
+msgid "Writing Zoom"
+msgstr "Zoom de escritura"
+
+msgid "Go to the saved writing zoom"
+msgstr "Ir al zoom de escritura guardado"
+
+msgid "Save the current zoom as writing zoom"
+msgstr "Guardar el zoom actual como zoom de escritura"
+
+msgid "Go to Writing Zoom"
+msgstr "Ir al zoom de escritura"
+
+msgid "Save Current Zoom as Writing Zoom"
+msgstr "Guardar zoom actual como zoom de escritura"
+
+msgid "Writing zoom saved: {}%"
+msgstr "Zoom de escritura guardado: {}%"
+
+msgid "Save After Every Change"
+msgstr "Guardar después de cada cambio"
+
+msgid "Saves the document a moment after each stroke or modification"
+msgstr "Guarda el documento un instante después de cada trazo o modificación"
+
+msgid "Autosaving the document failed, a recovery copy is kept instead"
+msgstr "Falló el guardado automático, se guardó una copia de recuperación"
+
+msgid "Saving the recovery copy failed"
+msgstr "Falló el guardado de la copia de recuperación"
+
+msgid "Recover Unsaved Documents?"
+msgstr "¿Recuperar documentos sin guardar?"
+
+msgid "Rnote was closed before these documents were saved:"
+msgstr "Rnote se cerró antes de guardar estos documentos:"
+
+msgid "Not Now"
+msgstr "Ahora no"
+
+msgid "Recover"
+msgstr "Recuperar"
+
+msgid "Recovering a document failed"
+msgstr "Falló la recuperación de un documento"
+
+msgid "Hide Toolbars While Drawing"
+msgstr "Ocultar barras al dibujar"
+
+msgid "Fades out the toolbars while drawing, they come back when the pen is lifted"
+msgstr "Desvanece las barras de herramientas mientras dibujás y vuelven al levantar el lápiz"
+
+msgid "Circle Tolerance (%)"
+msgstr "Tolerancia de círculo (%)"
+
+msgid "How squashed a drawn circle can be and still become a circle instead of an ellipse"
+msgstr "Cuánto puede estar achatado un círculo dibujado y aun así convertirse en círculo en vez de elipse"

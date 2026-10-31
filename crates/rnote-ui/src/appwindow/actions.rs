@@ -73,6 +73,10 @@ impl RnAppWindow {
         self.add_action(&action_zoom_fit_width);
         let action_zoom_real_width = gio::SimpleAction::new("zoom-real-width", None);
         self.add_action(&action_zoom_real_width);
+        let action_zoom_writing = gio::SimpleAction::new("zoom-writing", None);
+        self.add_action(&action_zoom_writing);
+        let action_save_writing_zoom = gio::SimpleAction::new("save-writing-zoom", None);
+        self.add_action(&action_save_writing_zoom);
         let action_zoomin = gio::SimpleAction::new("zoom-in", None);
         self.add_action(&action_zoomin);
         let action_zoomout = gio::SimpleAction::new("zoom-out", None);
@@ -741,6 +745,61 @@ impl RnAppWindow {
             }
         ));
 
+        // Zoom to the saved writing zoom
+        action_zoom_writing.connect_activate(clone!(
+            #[weak(rename_to=appwindow)]
+            self,
+            move |_, _| {
+                let Some(wrapper) = appwindow.active_tab_wrapper() else {
+                    return;
+                };
+                let Some(app_settings) = appwindow.app().app_settings_with_key("writing-zoom")
+                else {
+                    return;
+                };
+
+                // workaround for https://gitlab.gnome.org/GNOME/gtk/-/issues/187
+                wrapper.workaround_cancel_kinetic_scrolling_for_zoom();
+
+                let canvas = wrapper.canvas();
+                let viewport_center = canvas.engine_ref().camera.viewport_center();
+                let new_zoom = app_settings
+                    .double("writing-zoom")
+                    .clamp(Camera::ZOOM_MIN, Camera::ZOOM_MAX);
+                let mut widget_flags = canvas.engine_mut().zoom_w_timeout(new_zoom);
+                widget_flags |= canvas
+                    .engine_mut()
+                    .camera
+                    .set_viewport_center(viewport_center);
+                appwindow.handle_widget_flags(widget_flags, &canvas)
+            }
+        ));
+
+        // Save the current zoom as writing zoom
+        action_save_writing_zoom.connect_activate(clone!(
+            #[weak(rename_to=appwindow)]
+            self,
+            move |_, _| {
+                let Some(canvas) = appwindow.active_tab_canvas() else {
+                    return;
+                };
+                let Some(app_settings) = appwindow.app().app_settings_with_key("writing-zoom")
+                else {
+                    return;
+                };
+                let zoom = canvas.engine_ref().camera.total_zoom();
+                if let Err(e) = app_settings.set_double("writing-zoom", zoom) {
+                    error!("Saving the writing zoom failed, Err: {e:?}");
+                    return;
+                }
+                appwindow.overlays().dispatch_toast_text(
+                    &gettext("Writing zoom saved: {}%")
+                        .replace("{}", &format!("{:.0}", zoom * 100.0)),
+                    crate::overlays::TEXT_TOAST_TIMEOUT_DEFAULT,
+                );
+            }
+        ));
+
         // Zoom in
         action_zoomin.connect_activate(clone!(
             #[weak(rename_to=appwindow)]
@@ -1224,6 +1283,8 @@ impl RnAppWindow {
         );
         app.set_accels_for_action("win.zoom-reset", &["<Primary>0", "<Primary>KP_0"]);
         app.set_accels_for_action("win.zoom-out", &["<Primary>minus", "<Primary>KP_Subtract"]);
+        app.set_accels_for_action("win.zoom-writing", &["<Primary>e"]);
+        app.set_accels_for_action("win.save-writing-zoom", &["<Primary><Shift>e"]);
         app.set_accels_for_action("win.import-file", &["<Primary><Shift>i"]);
         app.set_accels_for_action("win.undo", &["<Primary>z"]);
         app.set_accels_for_action("win.redo", &["<Primary><Shift>z"]);

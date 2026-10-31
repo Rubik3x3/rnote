@@ -43,6 +43,12 @@ mod imp {
         #[template_child]
         pub(crate) texturedstyle_density_row: TemplateChild<adw::SpinRow>,
         #[template_child]
+        pub(crate) shape_recognition_row: TemplateChild<adw::SwitchRow>,
+        #[template_child]
+        pub(crate) shape_recognition_delay_row: TemplateChild<adw::SpinRow>,
+        #[template_child]
+        pub(crate) shape_circle_tolerance_row: TemplateChild<adw::SpinRow>,
+        #[template_child]
         pub(crate) texturedstyle_distribution_row: TemplateChild<adw::ComboRow>,
         #[template_child]
         pub(crate) stroke_width_picker: TemplateChild<RnStrokeWidthPicker>,
@@ -415,6 +421,65 @@ impl RnBrushPage {
             }
         ));
 
+        // Shape recognition
+        imp.shape_recognition_delay_row.set_range(
+            BrushConfig::SHAPE_RECOGNITION_DELAY_MIN as f64,
+            BrushConfig::SHAPE_RECOGNITION_DELAY_MAX as f64,
+        );
+        // set value after the range!
+        imp.shape_recognition_delay_row
+            .set_value(BrushConfig::SHAPE_RECOGNITION_DELAY_DEFAULT as f64);
+        imp.shape_recognition_row
+            .bind_property("active", &*imp.shape_recognition_delay_row, "sensitive")
+            .sync_create()
+            .build();
+        imp.shape_circle_tolerance_row
+            .set_range(0.0, BrushConfig::SHAPE_CIRCLE_TOLERANCE_MAX * 100.0);
+        imp.shape_circle_tolerance_row.set_value(
+            rnote_compose::recognition::RecognitionOptions::CIRCLE_TOLERANCE_DEFAULT * 100.0,
+        );
+        imp.shape_recognition_row
+            .bind_property("active", &*imp.shape_circle_tolerance_row, "sensitive")
+            .sync_create()
+            .build();
+        imp.shape_circle_tolerance_row.connect_changed(clone!(
+            #[weak]
+            appwindow,
+            move |row| {
+                appwindow
+                    .engine_config()
+                    .write()
+                    .pens_config
+                    .brush_config
+                    .shape_circle_tolerance = row.value() / 100.0;
+            }
+        ));
+
+        imp.shape_recognition_row.connect_active_notify(clone!(
+            #[weak]
+            appwindow,
+            move |row| {
+                appwindow
+                    .engine_config()
+                    .write()
+                    .pens_config
+                    .brush_config
+                    .shape_recognition = row.is_active();
+            }
+        ));
+        imp.shape_recognition_delay_row.connect_changed(clone!(
+            #[weak]
+            appwindow,
+            move |row| {
+                appwindow
+                    .engine_config()
+                    .write()
+                    .pens_config
+                    .brush_config
+                    .shape_recognition_delay_ms = row.value().round() as u32;
+            }
+        ));
+
         // dots distribution
         imp.texturedstyle_distribution_row
             .get()
@@ -448,6 +513,12 @@ impl RnBrushPage {
         imp.texturedstyle_density_row
             .set_value(brush_config.textured_options.density);
         self.set_texturedstyle_distribution_variant(brush_config.textured_options.distribution);
+        imp.shape_recognition_row
+            .set_active(brush_config.shape_recognition);
+        imp.shape_recognition_delay_row
+            .set_value(brush_config.shape_recognition_delay_ms as f64);
+        imp.shape_circle_tolerance_row
+            .set_value((brush_config.shape_circle_tolerance * 100.0).round());
 
         self.set_brush_style(brush_config.style);
         self.set_buildertype(brush_config.builder_type);

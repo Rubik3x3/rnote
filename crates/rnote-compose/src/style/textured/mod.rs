@@ -47,11 +47,8 @@ impl Composer<TexturedOptions> for PenPath {
         let mut prev = self.start;
 
         for seg in self.segments.iter() {
-            if seg.end().pos == self.start.pos {
-                options.advance_seed();
-                continue;
-            }
-
+            // Segments ending at the start are not skipped, closed paths end there.
+            // Segments without length compose to nothing.
             let bez_path = match seg {
                 Segment::LineTo { end } => {
                     let line = Line {

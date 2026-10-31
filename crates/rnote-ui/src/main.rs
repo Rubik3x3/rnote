@@ -30,6 +30,7 @@ pub(crate) mod penpicker;
 pub(crate) mod penssidebar;
 pub(crate) mod popoverguard;
 pub(crate) mod quickaccess;
+pub(crate) mod recovery;
 pub(crate) mod settingspanel;
 pub(crate) mod sidebar;
 pub(crate) mod strokecontentpaintable;
@@ -73,6 +74,7 @@ use gtk4::{gio, glib, prelude::*};
 use tracing::debug;
 
 fn main() -> glib::ExitCode {
+    recovery::install_panic_hook();
     if let Err(e) = setup_tracing() {
         eprintln!("failed to setup tracing, Err: {e:?}");
     }
@@ -86,6 +88,7 @@ fn main() -> glib::ExitCode {
         eprintln!("failed to setup gresources, Err: {e:?}");
     }
 
+    glib::set_application_name(config::APP_NAME_CAPITALIZED);
     let app = RnApp::new();
     app.run()
 }

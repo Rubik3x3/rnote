@@ -375,3 +375,47 @@ impl BrushStroke {
         Ok(image)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rnote_compose::style::smooth::SmoothOptions;
+
+    #[test]
+    fn closed_paths_render_their_last_segment() {
+        let corners = [
+            Vector2::new(100.0, 0.0),
+            Vector2::new(100.0, 100.0),
+            Vector2::new(0.0, 100.0),
+            Vector2::new(0.0, 0.0),
+        ];
+        let path = PenPath::new_w_segments(
+            Element::new(Vector2::new(0.0, 0.0), 0.5),
+            corners.map(|pos| Segment::LineTo {
+                end: Element::new(pos, 0.5),
+            }),
+        );
+        let options = SmoothOptions {
+            stroke_width: 4.0,
+            ..Default::default()
+        };
+        let bounds = Aabb::new(Vector2::new(-10.0, -10.0), Vector2::new(110.0, 110.0));
+        let image = Image::gen_with_piet(
+            |cx| {
+                path.draw_composed(cx, &options);
+                Ok(())
+            },
+            bounds,
+            1.0,
+        )
+        .unwrap();
+        // the image bounds are loosened by one pixel
+        let alpha = |x: f64, y: f64| {
+            let (px, py) = ((x + 11.0) as usize, (y + 11.0) as usize);
+            image.data[(py * image.pixel_width as usize + px) * 4 + 3]
+        };
+        for (x, y) in [(50.0, 0.0), (100.0, 50.0), (50.0, 100.0), (0.0, 50.0)] {
+            assert!(alpha(x, y) > 200, "missing edge at ({x}, {y})");
+        }
+    }
+}

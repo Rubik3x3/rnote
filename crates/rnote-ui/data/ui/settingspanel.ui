@@ -46,11 +46,23 @@
                       </object>
                     </child>
                     <child>
+                      <object class="AdwSwitchRow" id="general_autosave_on_change_row">
+                        <property name="title" translatable="yes">Save After Every Change</property>
+                        <property name="subtitle" translatable="yes">Saves the document a moment after each stroke or modification</property>
+                      </object>
+                    </child>
+                    <child>
                       <object class="AdwSpinRow" id="general_autosave_interval_secs_row">
                         <property name="title" translatable="yes">Autosave Interval (secs)</property>
                         <property name="subtitle" translatable="yes">Set the autosave interval in seconds</property>
                         <property name="adjustment">general_autosave_interval_secs_adj</property>
                         <property name="digits">0</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="AdwSwitchRow" id="general_autohide_docks_row">
+                        <property name="title" translatable="yes">Hide Toolbars While Drawing</property>
+                        <property name="subtitle" translatable="yes">Fades out the toolbars while drawing, they come back when the pen is lifted</property>
                       </object>
                     </child>
                     <child>

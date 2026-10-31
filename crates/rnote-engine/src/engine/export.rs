@@ -340,6 +340,16 @@ impl Engine {
         oneshot_receiver
     }
 
+    /// Serializes the document like [Engine::save_as_rnote_bytes], but on the current thread.
+    ///
+    /// Meant for emergency saves, when the app is about to go down and other threads can't be relied upon.
+    pub fn save_as_rnote_bytes_blocking(&self, file_name: &str) -> anyhow::Result<Vec<u8>> {
+        let rnote_file = RnoteFile {
+            engine_snapshot: ijson::to_value(self.take_snapshot())?,
+        };
+        rnote_file.save_as_bytes(file_name)
+    }
+
     fn stroke_content_from_sorted_keys(&self, keys: Vec<crate::store::StrokeKey>) -> StrokeContent {
         self.store
             .fetch_stroke_content(&keys)

@@ -49,7 +49,7 @@ class _RnoteMobileAppState extends State<RnoteMobileApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Rnote Mobile',
+      title: 'RnotePro',
       debugShowCheckedModeBanner: false,
       themeMode: _themeMode,
       theme: ThemeData(colorSchemeSeed: _seed, brightness: Brightness.light),

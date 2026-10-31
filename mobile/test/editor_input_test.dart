@@ -18,6 +18,7 @@ void main() {
     FlutterSecureStorage.setMockInitialValues({});
     final settings = await AppSettings.load();
     settings.autosaveSeconds = 0;
+    settings.autosaveOnChange = false;
     final tmp = Directory.systemTemp.createTempSync('input');
     final library = LibraryService.at(tmp, tmp);
     final file = File('${tmp.path}/t.rnote')

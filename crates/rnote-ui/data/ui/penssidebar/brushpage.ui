@@ -79,6 +79,12 @@
     <!-- Brush config -->
     <object class="GtkPopover" id="brushconfig_popover">
       <child>
+        <object class="GtkScrolledWindow">
+          <property name="hscrollbar-policy">never</property>
+          <property name="propagate-natural-width">true</property>
+          <property name="propagate-natural-height">true</property>
+          <property name="max-content-height">640</property>
+          <child>
         <object class="GtkBox">
           <property name="orientation">vertical</property>
           <property name="margin-top">6</property>
@@ -150,6 +156,38 @@ Results in the best looking handwriting.</property>
             </object>
           </child>
           <child>
+            <!-- Shape recognition -->
+            <object class="AdwPreferencesGroup">
+              <property name="title" translatable="yes">Shape Recognition</property>
+              <property name="description" translatable="yes">Hold the pen still at the end of a stroke to turn it into a perfect shape. Moving on after a pause keeps drawing, undo brings back the hand-drawn stroke.</property>
+              <child>
+                <object class="AdwSwitchRow" id="shape_recognition_row">
+                  <property name="title" translatable="yes">Recognize Shapes When Holding</property>
+                </object>
+              </child>
+              <child>
+                <object class="AdwSpinRow" id="shape_recognition_delay_row">
+                  <property name="title" translatable="yes">Hold Duration</property>
+                  <property name="subtitle" translatable="yes">Milliseconds the pen has to be held still</property>
+                  <property name="adjustment">shape_recognition_delay_adj</property>
+                  <property name="numeric">true</property>
+                  <property name="digits">0</property>
+                  <property name="climb-rate">50</property>
+                </object>
+              </child>
+              <child>
+                <object class="AdwSpinRow" id="shape_circle_tolerance_row">
+                  <property name="title" translatable="yes">Circle Tolerance (%)</property>
+                  <property name="subtitle" translatable="yes">How squashed a drawn circle can be and still become a circle instead of an ellipse</property>
+                  <property name="adjustment">shape_circle_tolerance_adj</property>
+                  <property name="numeric">true</property>
+                  <property name="digits">0</property>
+                  <property name="climb-rate">5</property>
+                </object>
+              </child>
+            </object>
+          </child>
+          <child>
             <!-- Solid options -->
             <object class="AdwPreferencesGroup">
               <property name="title" translatable="yes">Solid Style</property>
@@ -206,7 +244,17 @@ Results in the best looking handwriting.</property>
             </object>
           </child>
         </object>
+          </child>
+        </object>
       </child>
+    </object>
+    <object class="GtkAdjustment" id="shape_circle_tolerance_adj">
+      <property name="step-increment">5</property>
+      <property name="page-increment">10</property>
+    </object>
+    <object class="GtkAdjustment" id="shape_recognition_delay_adj">
+      <property name="step-increment">50</property>
+      <property name="page-increment">250</property>
     </object>
     <object class="GtkAdjustment" id="texturedstyle_density_adj">
       <property name="step-increment">0.1</property>

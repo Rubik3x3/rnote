@@ -61,6 +61,9 @@ class AppSettings extends ChangeNotifier {
     'pressureGamma': 1.0,
     'touchPressure': false,
     'smoothing': 0.25,
+    'shapeRecognition': true,
+    'shapeHoldMs': 500,
+    'shapeCircleTolerance': 0.25,
     'stylusButton1': StylusAction.eraser.name,
     'stylusButton2': StylusAction.select.name,
     'eraserEnd': StylusAction.eraser.name,
@@ -73,6 +76,8 @@ class AppSettings extends ChangeNotifier {
     'newDocPattern': 'dots',
     'newDocBackground': 0xFFFFFFFF,
     'autosaveSeconds': 15,
+    'autosaveOnChange': true,
+    'writingZoom': 1.0,
     'legacyFormat': false,
     // sync
     'syncUrl': '',
@@ -222,6 +227,24 @@ class AppSettings extends ChangeNotifier {
 
   int get autosaveSeconds => _get<int>('autosaveSeconds');
   set autosaveSeconds(int v) => _set('autosaveSeconds', v);
+
+  /// Save a moment after every change, instead of after [autosaveSeconds].
+  bool get autosaveOnChange => _get<bool>('autosaveOnChange');
+  set autosaveOnChange(bool v) => _set('autosaveOnChange', v);
+
+  double get writingZoom => _get<double>('writingZoom');
+  set writingZoom(double v) => _set('writingZoom', v);
+
+  /// Turn strokes into ideal shapes when the pen is held still at their end.
+  bool get shapeRecognition => _get<bool>('shapeRecognition');
+  set shapeRecognition(bool v) => _set('shapeRecognition', v);
+
+  /// How much a circle may be squashed and still become a circle instead of an ellipse.
+  double get shapeCircleTolerance => _get<double>('shapeCircleTolerance');
+  set shapeCircleTolerance(double v) => _set('shapeCircleTolerance', v);
+
+  int get shapeHoldMs => _get<int>('shapeHoldMs');
+  set shapeHoldMs(int v) => _set('shapeHoldMs', v);
 
   bool get legacyFormat => _get<bool>('legacyFormat');
   set legacyFormat(bool v) => _set('legacyFormat', v);

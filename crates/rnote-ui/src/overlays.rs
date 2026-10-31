@@ -20,6 +20,9 @@ mod imp {
     pub(crate) struct RnOverlays {
         pub(crate) progresspulses_active: Cell<usize>,
         pub(crate) progresspulse_id: RefCell<Option<glib::SourceId>>,
+        pub(crate) docks_hide_id: RefCell<Option<glib::SourceId>>,
+        pub(crate) docks_reveal_id: RefCell<Option<glib::SourceId>>,
+        pub(crate) docks_hidden: Cell<bool>,
 
         #[template_child]
         pub(crate) toolbar_overlay: TemplateChild<Overlay>,
@@ -298,6 +301,12 @@ impl RnOverlays {
                             true
                         };
 
+                        if close_finish_confirm {
+                            // saved or intentionally discarded
+                            appwindow.finish_document(
+                                &page.child().downcast::<RnCanvasWrapper>().unwrap().canvas(),
+                            );
+                        }
                         appwindow.close_tab_finish(&page, close_finish_confirm);
                     }
                 ));
@@ -411,6 +420,77 @@ impl RnOverlays {
                     }
                 ),
             );
+        }
+    }
+
+    /// Fades the toolbars out while drawing, so they don't cover the strokes.
+    ///
+    /// They only fade once the pen has been down for a moment, so clicks don't make them flicker,
+    /// and come back shortly after the pen is lifted.
+    pub(crate) fn set_drawing(&self, drawing: bool, autohide: bool) {
+        const HIDE_DELAY: Duration = Duration::from_millis(150);
+        const REVEAL_DELAY: Duration = Duration::from_millis(700);
+        let imp = self.imp();
+
+        if let Some(src) = imp.docks_hide_id.take() {
+            src.remove();
+        }
+        if let Some(src) = imp.docks_reveal_id.take() {
+            src.remove();
+        }
+
+        if !autohide {
+            self.set_docks_hidden(false);
+        } else if drawing {
+            if !imp.docks_hidden.get() {
+                imp.docks_hide_id
+                    .replace(Some(glib::source::timeout_add_local_once(
+                        HIDE_DELAY,
+                        clone!(
+                            #[weak(rename_to=overlays)]
+                            self,
+                            move || {
+                                overlays.imp().docks_hide_id.take();
+                                overlays.set_docks_hidden(true);
+                            }
+                        ),
+                    )));
+            }
+        } else if imp.docks_hidden.get() {
+            imp.docks_reveal_id
+                .replace(Some(glib::source::timeout_add_local_once(
+                    REVEAL_DELAY,
+                    clone!(
+                        #[weak(rename_to=overlays)]
+                        self,
+                        move || {
+                            overlays.imp().docks_reveal_id.take();
+                            overlays.set_docks_hidden(false);
+                        }
+                    ),
+                )));
+        }
+    }
+
+    fn set_docks_hidden(&self, hidden: bool) {
+        let imp = self.imp();
+        if imp.docks_hidden.replace(hidden) == hidden {
+            return;
+        }
+        let docks: [&Widget; 4] = [
+            imp.penpicker.upcast_ref(),
+            imp.colorpicker.upcast_ref(),
+            imp.quickaccessbar.upcast_ref(),
+            imp.sidebar_box.upcast_ref(),
+        ];
+        for dock in docks {
+            if hidden {
+                dock.add_css_class("dock_autohidden");
+            } else {
+                dock.remove_css_class("dock_autohidden");
+            }
+            // the pen passes through hidden toolbars
+            dock.set_can_target(!hidden);
         }
     }
 

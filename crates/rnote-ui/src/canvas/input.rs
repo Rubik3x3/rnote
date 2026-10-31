@@ -31,7 +31,6 @@ pub(crate) fn handle_pointer_controller_event(
     let touch_drawing = canvas.touch_drawing();
     let gdk_event_type = event.event_type();
     let gdk_modifiers = event.modifier_state();
-    let _gdk_device = event.device().unwrap();
     let backlog_policy = canvas.engine_ref().penholder.backlog_policy();
     let is_stylus = event_is_stylus(event);
 
@@ -325,7 +324,10 @@ fn trace_gdk_event(event: &gdk::Event) {
 /// Returns true if input should be rejected
 pub(crate) fn reject_pointer_input(event: &gdk::Event, touch_drawing: bool) -> bool {
     if touch_drawing {
-        if event.device().unwrap().num_touches() > 1 {
+        if event
+            .device()
+            .is_some_and(|device| device.num_touches() > 1)
+        {
             return true;
         }
     } else {
@@ -364,7 +366,8 @@ fn retrieve_pointer_elements(
     let mut elements = Vec::with_capacity(1);
 
     // Transforms the pos given in surface coordinate space to the canvas document coordinate space
-    let transform_pos = |pos: Vector2| -> Vector2 {
+    // Fails when the canvas is not inside the native of the event anymore, e.g. while its tab is being moved
+    let transform_pos = |pos: Vector2| -> Option<Vector2> {
         event_native
             .compute_point(
                 canvas,
@@ -380,7 +383,6 @@ fn retrieve_pointer_elements(
                     .inverse()
                     .transform_point2(p.to_p2d_vec())
             })
-            .unwrap()
     };
 
     if event.event_type() == gdk::EventType::MotionNotify
@@ -413,10 +415,12 @@ fn retrieve_pointer_elements(
             prev_delta = entry_delta;
 
             let axes = entry.axes();
-            let pos = transform_pos(Vector2::new(
+            let Some(pos) = transform_pos(Vector2::new(
                 axes[crate::utils::axis_use_idx(gdk::AxisUse::X)],
                 axes[crate::utils::axis_use_idx(gdk::AxisUse::Y)],
-            ));
+            )) else {
+                continue;
+            };
             let pressure = if is_stylus {
                 axes[crate::utils::axis_use_idx(gdk::AxisUse::Pressure)]
             } else {
@@ -431,10 +435,14 @@ fn retrieve_pointer_elements(
 
     let pos = event
         .position()
-        .map(|(x, y)| transform_pos(Vector2::new(x, y)))?;
+        .and_then(|(x, y)| transform_pos(Vector2::new(x, y)))?;
 
     let pressure = if is_stylus {
-        event.axis(gdk::AxisUse::Pressure).unwrap()
+        // Some tablets send events without a pressure axis, e.g. on proximity changes
+        event
+            .axis(gdk::AxisUse::Pressure)
+            .filter(|p| p.is_finite())
+            .unwrap_or(Element::PRESSURE_DEFAULT)
     } else {
         Element::PRESSURE_DEFAULT
     };

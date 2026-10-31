@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import '../render/stroke_renderer.dart';
 import '../rnote/geometry.dart';
@@ -11,6 +11,7 @@ import '../rnote/json_codec.dart';
 import '../rnote/model.dart';
 import '../rnote/rnote_file.dart';
 import '../settings/app_settings.dart';
+import 'shape_recognition.dart';
 
 enum Tool {
   pen('Lápiz'),
@@ -30,9 +31,20 @@ sealed class ActiveAction {}
 
 class DrawAction extends ActiveAction {
   final Tool tool;
-  final List<PathElement> elements = [];
+  List<PathElement> elements = [];
   Offset? smoothed;
   DrawAction(this.tool);
+
+  // Shape recognition: the pen held still around [holdAnchor] fires [holdTimer].
+  Offset? holdAnchor;
+  int holdAnchorLen = 1;
+  Timer? holdTimer;
+
+  /// The shape the stroke was turned into, with the hand-drawn elements kept for undo.
+  RecognizedShape? snapped;
+  Offset? snapAnchor;
+  double snapPressure = 0.5;
+  List<PathElement>? freehand;
 }
 
 class EraseAction extends ActiveAction {
@@ -109,11 +121,11 @@ class EditorController extends ChangeNotifier {
   }
 
   Color colorOf(Tool t) => switch (t) {
-        Tool.highlighter => settings.highlighterColor,
-        Tool.shape => settings.shapeColor,
-        Tool.text => settings.textColor,
-        _ => settings.penColor,
-      };
+    Tool.highlighter => settings.highlighterColor,
+    Tool.shape => settings.shapeColor,
+    Tool.text => settings.textColor,
+    _ => settings.penColor,
+  };
 
   void setColorFor(Tool t, Color c) {
     switch (t) {
@@ -175,11 +187,18 @@ class EditorController extends ChangeNotifier {
   // Saving
   // -------------------------------------------------------------------------
 
+  /// How long the document must be left alone before it is saved, when saving after every change.
+  static const _autosaveIdle = Duration(milliseconds: 1500);
+
   void markDirty() {
     dirty = true;
     _autosaveTimer?.cancel();
     final secs = settings.autosaveSeconds;
-    if (secs > 0) _autosaveTimer = Timer(Duration(seconds: secs), () => save());
+    if (settings.autosaveOnChange) {
+      _autosaveTimer = Timer(_autosaveIdle, () => save());
+    } else if (secs > 0) {
+      _autosaveTimer = Timer(Duration(seconds: secs), () => save());
+    }
   }
 
   Future<void> save() async {
@@ -260,6 +279,11 @@ class EditorController extends ChangeNotifier {
 
   void resetZoom() => setCamera(1, camera.screenToDoc(_screenCenter), _screenCenter);
 
+  /// Goes to the saved writing zoom, keeping the center of the screen.
+  void writingZoom() => setCamera(settings.writingZoom, camera.screenToDoc(_screenCenter), _screenCenter);
+
+  void saveWritingZoom() => settings.writingZoom = camera.zoom;
+
   void fitWidth() {
     final f = doc.config.format;
     final layout = doc.config.layout;
@@ -268,13 +292,9 @@ class EditorController extends ChangeNotifier {
         : f.width;
     final zoom = (camera.size.width * 0.94) / math.max(width, 50);
     final content = doc.contentBounds();
-    final left = (layout == Layout.infinite || layout == Layout.semiInfinite)
-        ? (content?.left ?? 0)
-        : 0.0;
+    final left = (layout == Layout.infinite || layout == Layout.semiInfinite) ? (content?.left ?? 0) : 0.0;
     final infinite = layout == Layout.infinite || layout == Layout.semiInfinite;
-    final docTop = infinite && content != null
-        ? content.top - 80 / zoom
-        : camera.screenToDoc(Offset.zero).dy;
+    final docTop = infinite && content != null ? content.top - 80 / zoom : camera.screenToDoc(Offset.zero).dy;
     camera.zoom = zoom.clamp(minZoom, maxZoom);
     camera.offset = Offset(left * camera.zoom - camera.size.width * 0.03, docTop * camera.zoom);
     _repaintDoc();
@@ -312,9 +332,12 @@ class EditorController extends ChangeNotifier {
     final p = camera.screenToDoc(screenPos);
     switch (tool) {
       case Tool.pen || Tool.highlighter:
-        final a = DrawAction(tool)..smoothed = p;
+        final a = DrawAction(tool)
+          ..smoothed = p
+          ..holdAnchor = p;
         a.elements.add(PathElement(p, pressure));
         active = a;
+        _restartHold(a);
       case Tool.eraser:
         final a = EraseAction();
         active = a;
@@ -347,7 +370,14 @@ class EditorController extends ChangeNotifier {
     if (a == null) return;
     final p = camera.screenToDoc(screenPos);
     switch (a) {
+      case DrawAction() when a.snapped != null && !_resumeIfMoved(a, p):
+        break;
       case DrawAction():
+        if (a.holdAnchor != null && (p - a.holdAnchor!).distance > _holdTolerance / camera.zoom) {
+          a.holdAnchor = p;
+          a.holdAnchorLen = a.elements.length;
+          _restartHold(a);
+        }
         final minDist = 0.6 / camera.zoom;
         final s = settings.smoothing.clamp(0.0, 0.9);
         final sm = a.smoothed! + (p - a.smoothed!) * (1 - s);
@@ -391,9 +421,7 @@ class EditorController extends ChangeNotifier {
       case ResizeSelectionAction():
         if (a.scale != 1) {
           final tl = a.startBounds.topLeft;
-          final t = Affine.translation(tl)
-              .multiply(Affine.scale(a.scale, a.scale))
-              .multiply(Affine.translation(-tl));
+          final t = Affine.translation(tl).multiply(Affine.scale(a.scale, a.scale)).multiply(Affine.translation(-tl));
           _transformSelection(t, scaleWidths: true);
         }
       case ShapeAction():
@@ -407,6 +435,7 @@ class EditorController extends ChangeNotifier {
   void cancel() {
     final a = active;
     active = null;
+    if (a is DrawAction) a.holdTimer?.cancel();
     if (a is EraseAction && a.changed) {
       undo();
       _redo.clear();
@@ -416,9 +445,9 @@ class EditorController extends ChangeNotifier {
 
   /// Number of points of the stroke in progress (to tell taps and strokes apart).
   int get activePointCount => switch (active) {
-        DrawAction(:final elements) => elements.length,
-        _ => 0,
-      };
+    DrawAction(:final elements) => elements.length,
+    _ => 0,
+  };
 
   // --- drawing ---
 
@@ -454,8 +483,77 @@ class EditorController extends ChangeNotifier {
     return BrushStroke(PenPath.fromElements(a.elements), styleFor(a.tool));
   }
 
+  // --- shape recognition ---
+
+  /// Movement in screen pixels that still counts as holding the pen still.
+  static const _holdTolerance = 4.0;
+
+  /// Strokes smaller than this in screen pixels are never recognized, so writing is left alone.
+  static const _recognitionMinSize = 18.0;
+
+  /// Movement in screen pixels after recognition that brings back the hand-drawn stroke to keep drawing,
+  /// so pausing in the middle of a stroke does not cut it short.
+  static const _resumeDistance = 12.0;
+
+  /// How far recognized shapes may deviate from the ideal curves, in screen pixels. Never coarser than the default
+  /// in document units, so shapes recognized when zoomed out stay smooth when zooming in.
+  static const _shapeFlatness = 0.1;
+
+  void _restartHold(DrawAction a) {
+    a.holdTimer?.cancel();
+    if (!settings.shapeRecognition) return;
+    a.holdTimer = Timer(Duration(milliseconds: settings.shapeHoldMs), () => _onHold(a));
+  }
+
+  void _onHold(DrawAction a) {
+    if (!identical(active, a) || a.snapped != null) return;
+    final points = [for (final e in a.elements.take(a.holdAnchorLen)) e.pos];
+    final shape = RecognizedShape.recognize(
+      points,
+      _recognitionMinSize / camera.zoom,
+      circleTolerance: settings.shapeCircleTolerance,
+      flatness: math.min(_shapeFlatness / camera.zoom, RecognizedShape.flatnessDefault),
+    );
+    if (shape == null) return;
+    final pressures = [for (final e in a.elements.take(a.holdAnchorLen)) e.pressure]..sort();
+    a.snapPressure = pressures[pressures.length ~/ 2];
+    a.freehand = List.of(a.elements);
+    a.snapped = shape;
+    a.snapAnchor = a.holdAnchor;
+    a.elements = [for (final p in shape.points) PathElement(p, a.snapPressure)];
+    HapticFeedback.selectionClick();
+    _repaintOverlay();
+  }
+
+  /// Brings back the hand-drawn stroke when the pen moved on after the shape was recognized.
+  bool _resumeIfMoved(DrawAction a, Offset p) {
+    if ((p - a.snapAnchor!).distance * camera.zoom < _resumeDistance) return false;
+    a.elements = a.freehand!;
+    a.freehand = null;
+    a.snapped = null;
+    return true;
+  }
+
   void _finishDraw(DrawAction a) {
+    a.holdTimer?.cancel();
     if (a.elements.isEmpty) return;
+    final freehand = a.freehand;
+    if (a.snapped != null && freehand != null) {
+      // the hand-drawn stroke goes into the history first, so undoing brings it back
+      final style = styleFor(a.tool);
+      final layer = a.tool == Tool.highlighter ? StrokeLayer.highlighter : StrokeLayer.user0;
+      _pushHistory();
+      final entry = StrokeEntry(BrushStroke(PenPath.fromElements(freehand), style), layer, doc.nextChrono());
+      doc.strokes.add(entry);
+      doc.sortStrokes();
+      _pushHistory();
+      final i = doc.strokes.indexOf(entry);
+      doc.strokes[i] = StrokeEntry(BrushStroke(PenPath.fromElements(a.elements), style), layer, entry.t);
+      markDirty();
+      _repaintDoc();
+      notifyListeners();
+      return;
+    }
     final last = a.elements.last;
     if (a.smoothed != null && (a.smoothed! - last.pos).distance > 0.01) {
       a.elements.add(PathElement(a.smoothed!, last.pressure));
@@ -654,12 +752,12 @@ class EditorController extends ChangeNotifier {
 
   /// Offset applied while the selection is being dragged, for rendering.
   Affine? get selectionPreviewTransform => switch (active) {
-        MoveSelectionAction(:final delta) => Affine.translation(delta),
-        ResizeSelectionAction(:final startBounds, :final scale) => Affine.translation(startBounds.topLeft)
-            .multiply(Affine.scale(scale, scale))
-            .multiply(Affine.translation(-startBounds.topLeft)),
-        _ => null,
-      };
+    MoveSelectionAction(:final delta) => Affine.translation(delta),
+    ResizeSelectionAction(:final startBounds, :final scale) => Affine.translation(
+      startBounds.topLeft,
+    ).multiply(Affine.scale(scale, scale)).multiply(Affine.translation(-startBounds.topLeft)),
+    _ => null,
+  };
 
   // --- shapes ---
 
@@ -714,12 +812,14 @@ class EditorController extends ChangeNotifier {
         doc.strokes.removeAt(idx);
       } else {
         final keepRanges = text == existing.text;
-        doc.strokes[idx] = entry.withStroke(TextStroke(
-          text,
-          existing.affine,
-          style.copyWith(rangedAttributes: keepRanges ? existing.style.rangedAttributes : const []),
-          raw: existing.raw,
-        ));
+        doc.strokes[idx] = entry.withStroke(
+          TextStroke(
+            text,
+            existing.affine,
+            style.copyWith(rangedAttributes: keepRanges ? existing.style.rangedAttributes : const []),
+            raw: existing.raw,
+          ),
+        );
       }
       _afterChange();
     } else if (text.trim().isNotEmpty) {
@@ -752,8 +852,11 @@ class EditorController extends ChangeNotifier {
     final h = intrinsic.height > 0 ? intrinsic.height : 300.0;
     final scale = math.min(1.0, math.min(vp.width * 0.6 / w, vp.height * 0.6 / h));
     final half = Offset(w / 2, h / 2);
-    final stroke = VectorImageStroke(svg, Offset(w, h),
-        RectShape(half, Affine(scale, 0, 0, scale, vp.center.dx, vp.center.dy)));
+    final stroke = VectorImageStroke(
+      svg,
+      Offset(w, h),
+      RectShape(half, Affine(scale, 0, 0, scale, vp.center.dx, vp.center.dy)),
+    );
     addStroke(stroke, StrokeLayer.image);
     _selectOnly(doc.strokes.lastWhere((e) => identical(e.stroke, stroke)));
   }
@@ -785,4 +888,3 @@ class EditorController extends ChangeNotifier {
     _afterChange();
   }
 }
-

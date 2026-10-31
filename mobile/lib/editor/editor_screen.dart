@@ -318,6 +318,8 @@ class _EditorScreenState extends State<EditorScreen> with WidgetsBindingObserver
         c.fitContent();
       case 'zoom_100':
         c.resetZoom();
+      case 'zoom_writing':
+        c.writingZoom();
       case 'select_all':
         c.selectAll();
       case 'pin':
@@ -447,6 +449,8 @@ class _TopBar extends StatelessWidget {
                       value: 'fit_all', child: ListTile(leading: Icon(Icons.zoom_out_map), title: Text('Ver todo'))),
                   const PopupMenuItem(
                       value: 'zoom_100', child: ListTile(leading: Icon(Icons.youtube_searched_for), title: Text('Zoom 100 %'))),
+                  const PopupMenuItem(
+                      value: 'zoom_writing', child: ListTile(leading: Icon(Icons.edit_note), title: Text('Zoom de escritura'))),
                   const PopupMenuItem(
                       value: 'select_all', child: ListTile(leading: Icon(Icons.select_all), title: Text('Seleccionar todo'))),
                   PopupMenuItem(
@@ -746,15 +750,32 @@ class _ZoomChip extends StatelessWidget {
     final c = controller;
     return PopupMenuButton<String>(
       tooltip: 'Zoom',
-      onSelected: (v) => switch (v) {
-        '100' => c.resetZoom(),
-        'width' => c.fitWidth(),
-        _ => c.fitContent(),
+      onSelected: (v) {
+        switch (v) {
+          case 'writing':
+            c.writingZoom();
+          case 'save_writing':
+            c.saveWritingZoom();
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text('Zoom de escritura guardado: ${(c.camera.zoom * 100).round()} %'),
+                duration: const Duration(seconds: 2)));
+          case '100':
+            c.resetZoom();
+          case 'width':
+            c.fitWidth();
+          default:
+            c.fitContent();
+        }
       },
-      itemBuilder: (_) => const [
-        PopupMenuItem(value: '100', child: Text('100 %')),
-        PopupMenuItem(value: 'width', child: Text('Ajustar al ancho')),
-        PopupMenuItem(value: 'all', child: Text('Ver todo')),
+      itemBuilder: (_) => [
+        PopupMenuItem(
+            value: 'writing',
+            child: Text('Zoom de escritura (${(c.settings.writingZoom * 100).round()} %)')),
+        const PopupMenuItem(value: 'save_writing', child: Text('Guardar zoom actual para escribir')),
+        const PopupMenuDivider(),
+        const PopupMenuItem(value: '100', child: Text('100 %')),
+        const PopupMenuItem(value: 'width', child: Text('Ajustar al ancho')),
+        const PopupMenuItem(value: 'all', child: Text('Ver todo')),
       ],
       child: Chip(
         visualDensity: VisualDensity.compact,

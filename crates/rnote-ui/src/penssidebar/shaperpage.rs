@@ -78,6 +78,8 @@ mod imp {
         pub(crate) axes_style_row: TemplateChild<adw::ComboRow>,
         #[template_child]
         pub(crate) axes_tick_spacing_row: TemplateChild<adw::SpinRow>,
+        #[template_child]
+        pub(crate) axes_scale_with_zoom_row: TemplateChild<adw::SwitchRow>,
 
         #[template_child]
         pub(crate) stroke_width_picker: TemplateChild<RnStrokeWidthPicker>,
@@ -568,6 +570,20 @@ impl RnShaperPage {
             }
         ));
 
+        imp.axes_scale_with_zoom_row.connect_active_notify(clone!(
+            #[weak]
+            appwindow,
+            move |row| {
+                appwindow
+                    .engine_config()
+                    .write()
+                    .pens_config
+                    .shaper_config
+                    .axes_options
+                    .scale_with_zoom = row.is_active();
+            }
+        ));
+
         // Constraints
         imp.constraint_enabled_row
             .get()
@@ -720,6 +736,8 @@ impl RnShaperPage {
             .set_value(shaper_config.axes_options.tick_spacing);
         imp.axes_tick_spacing_row
             .set_sensitive(shaper_config.axes_options.style != AxesStyle::Plain);
+        imp.axes_scale_with_zoom_row
+            .set_active(shaper_config.axes_options.scale_with_zoom);
 
         // Arrow head
         imp.arrow_head_row

@@ -82,6 +82,7 @@ impl PenBehaviour for Shaper {
                         &engine_view.config.pens_config.shaper_config,
                         element,
                         now,
+                        engine_view.camera.total_zoom(),
                     ),
                 };
 
@@ -272,8 +273,9 @@ fn new_builder(
     shaper_config: &ShaperConfig,
     element: Element,
     now: Instant,
+    zoom: f64,
 ) -> Box<dyn Buildable<Emit = Shape>> {
-    let axes_options = shaper_config.axes_options;
+    let axes_options = shaper_config.axes_options.for_zoom(zoom);
     let arrow_head = shaper_config.arrow_head;
 
     match shaper_config.builder_type {

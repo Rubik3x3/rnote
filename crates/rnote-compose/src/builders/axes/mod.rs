@@ -74,6 +74,16 @@ pub struct AxesOptions {
     /// Length of a tick, measured across the axis.
     #[serde(rename = "tick_length", with = "crate::serialize::f64_dp3")]
     pub tick_length: f64,
+    /// Whether the sizes are meant on screen, so ticks and labels look the same at every zoom level.
+    #[serde(rename = "scale_with_zoom")]
+    pub scale_with_zoom: bool,
+    /// The factor the sizes were scaled with by [AxesOptions::for_zoom].
+    #[serde(skip, default = "size_factor_default")]
+    size_factor: f64,
+}
+
+fn size_factor_default() -> f64 {
+    1.0
 }
 
 impl Default for AxesOptions {
@@ -82,6 +92,8 @@ impl Default for AxesOptions {
             style: AxesStyle::default(),
             tick_spacing: 24.0,
             tick_length: 8.0,
+            scale_with_zoom: true,
+            size_factor: size_factor_default(),
         }
     }
 }
@@ -197,13 +209,39 @@ impl AxesOptions {
     /// Label steps, labels are thinned out with these when they would overlap.
     const LABEL_STEPS: [i64; 7] = [1, 2, 5, 10, 20, 50, 100];
 
+    /// The options with the sizes converted to the document, for drawing at the given zoom.
+    ///
+    /// When the options scale with the zoom, the sizes stay the same on screen.
+    pub fn for_zoom(self, zoom: f64) -> Self {
+        if !self.scale_with_zoom || !zoom.is_finite() || zoom <= 0.0 {
+            return self;
+        }
+        let factor = self.size_factor / zoom;
+        Self {
+            tick_spacing: self.tick_spacing / zoom,
+            tick_length: self.tick_length / zoom,
+            size_factor: factor,
+            ..self
+        }
+    }
+
+    /// The options with another tick spacing, already in document size.
+    pub(crate) fn with_tick_spacing(self, tick_spacing: f64) -> Self {
+        Self {
+            tick_spacing,
+            ..self
+        }
+    }
+
     fn spacing(&self) -> f64 {
-        self.tick_spacing
-            .clamp(Self::TICK_SPACING_MIN, Self::TICK_SPACING_MAX)
+        self.tick_spacing.clamp(
+            Self::TICK_SPACING_MIN * self.size_factor,
+            Self::TICK_SPACING_MAX * self.size_factor,
+        )
     }
 
     fn label_height(&self) -> f64 {
-        (self.spacing() * 0.4).clamp(6.0, 16.0)
+        (self.spacing() * 0.4).clamp(6.0 * self.size_factor, 16.0 * self.size_factor)
     }
 
     /// Generates the shapes of a coordinate system.
@@ -498,6 +536,21 @@ mod tests {
         assert!(rect.hit_by_segment(Vector2::new(-5.0, 0.0), Vector2::new(5.0, 0.0)));
         assert!(!rect.hit_by_segment(Vector2::new(-5.0, 2.0), Vector2::new(5.0, 2.0)));
         assert!(!rect.hit_by_segment(Vector2::new(2.0, 2.0), Vector2::new(5.0, 5.0)));
+    }
+
+    #[test]
+    fn for_zoom_keeps_screen_size() {
+        let options = AxesOptions::default();
+        let zoomed = options.for_zoom(2.0);
+        assert_eq!(zoomed.spacing(), options.spacing() / 2.0);
+        assert_eq!(zoomed.label_height(), options.label_height() / 2.0);
+        assert_eq!(zoomed.tick_length, options.tick_length / 2.0);
+
+        let fixed = AxesOptions {
+            scale_with_zoom: false,
+            ..Default::default()
+        };
+        assert_eq!(fixed.for_zoom(2.0), fixed);
     }
 
     #[test]

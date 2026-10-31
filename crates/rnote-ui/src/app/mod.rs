@@ -142,6 +142,7 @@ mod imp {
             window_group.add_window(&appwindow);
 
             appwindow.present();
+            crate::recovery::offer_recovery(&appwindow);
 
             // Loading in input file in the first tab, if Some
             if let Some(input_file) = input_file {
@@ -199,6 +200,17 @@ impl RnApp {
     /// Callers that query the settings should implement good default fallback accordingly
     pub(crate) fn app_settings(&self) -> Option<gio::Settings> {
         self.imp().app_settings.clone()
+    }
+
+    /// Returns the app settings when the installed schema has the key.
+    ///
+    /// Accessing a key that is missing aborts the app, which can happen while an older schema is installed.
+    pub(crate) fn app_settings_with_key(&self, key: &str) -> Option<gio::Settings> {
+        self.app_settings().filter(|settings| {
+            settings
+                .settings_schema()
+                .is_some_and(|schema| schema.has_key(key))
+        })
     }
 
     pub(crate) fn settings_schema_found(&self) -> bool {

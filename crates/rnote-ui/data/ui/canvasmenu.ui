@@ -125,6 +125,30 @@
             </object>
           </child>
           <child>
+            <object class="GtkBox">
+              <style>
+                <class name="linked" />
+              </style>
+              <property name="orientation">horizontal</property>
+              <child>
+                <object class="GtkButton">
+                  <property name="label" translatable="yes">Writing Zoom</property>
+                  <property name="tooltip_text" translatable="yes">Go to the saved writing zoom</property>
+                  <property name="hexpand">true</property>
+                  <property name="action-name">win.zoom-writing</property>
+                </object>
+              </child>
+              <child>
+                <object class="GtkButton">
+                  <property name="icon_name">document-save-symbolic</property>
+                  <property name="tooltip_text" translatable="yes">Save the current zoom as writing zoom</property>
+                  <property name="width-request">50</property>
+                  <property name="action-name">win.save-writing-zoom</property>
+                </object>
+              </child>
+            </object>
+          </child>
+          <child>
             <object class="GtkBox" id="fixedsize_quickactions_box">
               <property name="orientation">horizontal</property>
               <property name="spacing">6</property>

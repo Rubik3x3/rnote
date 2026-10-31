@@ -21,7 +21,7 @@ win_build_environment_path = get_option('win-build-environment-path')
 win_installer_name = get_option('win-installer-name')
 
 app_name = 'rnote'
-app_name_capitalized = 'Rnote'
+app_name_capitalized = 'RnotePro'
 cli_name = 'rnote-cli'
 base_id = 'com.github.flxzt.' + app_name
 app_website = 'https://rnote.flxzt.net'

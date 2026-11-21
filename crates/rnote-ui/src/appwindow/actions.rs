@@ -103,6 +103,9 @@ impl RnAppWindow {
         self.add_action(&action_clear_doc);
         let action_insert_function_graph = gio::SimpleAction::new("insert-function-graph", None);
         self.add_action(&action_insert_function_graph);
+        let action_compact_vertical_space =
+            gio::SimpleAction::new("compact-vertical-space", None);
+        self.add_action(&action_compact_vertical_space);
         let action_new_doc = gio::SimpleAction::new("new-doc", None);
         self.add_action(&action_new_doc);
         let action_save_doc = gio::SimpleAction::new("save-doc", None);
@@ -638,6 +641,19 @@ impl RnAppWindow {
                             .await;
                     }
                 ));
+            }
+        ));
+
+        // Close the big empty gaps between blocks of writing
+        action_compact_vertical_space.connect_activate(clone!(
+            #[weak(rename_to=appwindow)]
+            self,
+            move |_, _| {
+                let Some(canvas) = appwindow.active_tab_canvas() else {
+                    return;
+                };
+                let widget_flags = canvas.engine_mut().compact_vertical_space();
+                appwindow.handle_widget_flags(widget_flags, &canvas);
             }
         ));
 

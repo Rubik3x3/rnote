@@ -401,12 +401,42 @@ impl Background {
         Vector2::new(tile_width, tile_height)
     }
 
+    /// How many times each cell is split at `zoom`. Zoomed in, a 32 px grid would show
+    /// 128 px cells at 4x, too big to write in; splitting by powers of 2 keeps the cells on screen
+    /// between 1x and 2x their size at zoom 1 and keeps the original lines where they were.
+    fn subdivisions(zoom: f64) -> f64 {
+        if zoom < 2.0 {
+            1.0
+        } else {
+            2_f64.powf(zoom.log2().floor())
+        }
+    }
+
+    /// The background as drawn on screen at `zoom`: same colors, smaller pattern.
+    /// Exports and printing keep using the original one.
+    pub(crate) fn on_screen(&self, zoom: f64) -> Self {
+        let mut bg = *self;
+        bg.pattern_size /= Self::subdivisions(zoom);
+        bg
+    }
+
     /// Generate the background svg, without Xml header or Svg root.
     pub(crate) fn gen_svg(
         &self,
         bounds: Aabb,
         with_pattern: bool,
         optimize_printing: bool,
+    ) -> Result<Svg, anyhow::Error> {
+        self.gen_svg_w_line_scale(bounds, with_pattern, optimize_printing, 1.0)
+    }
+
+    /// Like `gen_svg`, with the line and dot widths multiplied by `line_scale`.
+    fn gen_svg_w_line_scale(
+        &self,
+        bounds: Aabb,
+        with_pattern: bool,
+        optimize_printing: bool,
+        line_scale: f64,
     ) -> Result<Svg, anyhow::Error> {
         let (color, pattern_color) = if optimize_printing {
             if self.color.luma() > 0.5 {
@@ -441,7 +471,7 @@ impl Background {
                         bounds,
                         self.pattern_size[1],
                         pattern_color,
-                        Self::LINE_WIDTH,
+                        Self::LINE_WIDTH * line_scale,
                     ));
                 }
                 PatternStyle::Grid => {
@@ -450,7 +480,7 @@ impl Background {
                         self.pattern_size[1],
                         self.pattern_size[0],
                         pattern_color,
-                        Self::LINE_WIDTH,
+                        Self::LINE_WIDTH * line_scale,
                     ));
                 }
                 PatternStyle::Dots => {
@@ -459,7 +489,7 @@ impl Background {
                         self.pattern_size[1],
                         self.pattern_size[0],
                         pattern_color,
-                        Self::DOTS_WIDTH,
+                        Self::DOTS_WIDTH * line_scale,
                     ));
                 }
                 PatternStyle::IsometricGrid => {
@@ -467,7 +497,7 @@ impl Background {
                         bounds,
                         self.pattern_size[1],
                         pattern_color,
-                        Self::LINE_WIDTH,
+                        Self::LINE_WIDTH * line_scale,
                     ));
                 }
                 PatternStyle::IsometricDots => {
@@ -475,7 +505,7 @@ impl Background {
                         bounds,
                         self.pattern_size[1],
                         pattern_color,
-                        Self::HEXAGON_HEIGHT,
+                        Self::HEXAGON_HEIGHT * line_scale,
                     ));
                 }
             }
@@ -487,9 +517,16 @@ impl Background {
         Ok(Svg { svg_data, bounds })
     }
 
-    pub(crate) fn gen_tile_image(&self, image_scale: f64) -> Result<Image, anyhow::Error> {
-        let tile_bounds = Aabb::new(Vector2::ZERO, self.tile_size());
-        self.gen_svg(tile_bounds, true, false)?
+    /// The repeating tile drawn on screen at `zoom`. Its size is `on_screen(zoom).tile_size()`.
+    pub(crate) fn gen_tile_image(
+        &self,
+        image_scale: f64,
+        zoom: f64,
+    ) -> Result<Image, anyhow::Error> {
+        let bg = self.on_screen(zoom);
+        let tile_bounds = Aabb::new(Vector2::ZERO, bg.tile_size());
+        // thinner lines too, otherwise at 8x a 0.5 px line becomes 4 px thick
+        bg.gen_svg_w_line_scale(tile_bounds, true, false, 1.0 / Self::subdivisions(zoom))?
             .gen_image(image_scale)
     }
 
@@ -502,5 +539,21 @@ impl Background {
     ) -> anyhow::Result<()> {
         self.gen_svg(bounds, with_pattern, optimize_printing)?
             .draw_to_cairo(cx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Background;
+    use p2d::math::Vector2;
+
+    #[test]
+    fn grid_is_split_when_zoomed_in() {
+        let bg = Background::default(); // 32 px cells
+        assert_eq!(bg.on_screen(1.0).pattern_size, Vector2::splat(32.0));
+        assert_eq!(bg.on_screen(0.5).pattern_size, Vector2::splat(32.0));
+        // cells on screen stay between 32 and 64 px
+        assert_eq!(bg.on_screen(3.0).pattern_size, Vector2::splat(16.0));
+        assert_eq!(bg.on_screen(8.0).pattern_size, Vector2::splat(4.0));
     }
 }

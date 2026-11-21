@@ -1,5 +1,6 @@
 // Modules
 pub mod animation;
+pub mod compact;
 pub mod config;
 pub mod export;
 pub mod import;

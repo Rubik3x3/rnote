@@ -11,6 +11,7 @@ use crate::pens::shortcuts::ShortcutAction;
 use crate::widgetflags::WidgetFlags;
 use futures::channel::oneshot;
 use p2d::bounding_volume::Aabb;
+use p2d::math::Vector2;
 use piet::RenderContext;
 use rnote_compose::eventresult::EventPropagation;
 use rnote_compose::penevent::{KeyboardKey, ModifierKey, PenEvent, PenProgress, ShortcutKey};
@@ -45,6 +46,28 @@ pub struct PenHolder {
     toggle_pen_style: Option<PenStyle>,
     #[serde(skip)]
     prev_shortcut_key: Option<ShortcutKey>,
+    #[serde(skip)]
+    quick_text: QuickText,
+}
+
+/// State for opening a text box with a double tap while using the brush (like Excalidraw).
+#[derive(Debug, Default)]
+struct QuickText {
+    /// Time and position of the brush down that may become a tap.
+    tap_start: Option<(Instant, Vector2)>,
+    /// Time and position of the last finished tap.
+    last_tap: Option<(Instant, Vector2)>,
+    /// The typewriter was opened by a double tap, so it goes back to the brush when done.
+    from_brush: bool,
+}
+
+impl QuickText {
+    /// Longest press that still counts as a tap.
+    const TAP_MAX_DURATION: Duration = Duration::from_millis(250);
+    /// Longest pause between the two taps.
+    const DOUBLE_TAP_MAX_INTERVAL: Duration = Duration::from_millis(350);
+    /// Max distance in screen pixels: the two taps must hit the same spot, not two dots of a ":".
+    const MAX_DISTANCE: f64 = 6.0;
 }
 
 impl Default for PenHolder {
@@ -57,6 +80,7 @@ impl Default for PenHolder {
             progress: PenProgress::Idle,
             toggle_pen_style: None,
             prev_shortcut_key: None,
+            quick_text: QuickText::default(),
         }
     }
 }
@@ -110,6 +134,7 @@ impl PenHolder {
         // When the style is changed externally, the toggle mode / internal states are reset
         self.toggle_pen_style = None;
         self.prev_shortcut_key = None;
+        self.quick_text = QuickText::default();
 
         widget_flags
     }
@@ -191,6 +216,13 @@ impl PenHolder {
 
         if let Some(pen_mode) = pen_mode {
             widget_flags |= self.change_pen_mode(pen_mode, engine_view);
+        }
+
+        let (consumed, wf) = self.handle_quick_text(&event, now, engine_view);
+        widget_flags |= wf;
+        if consumed {
+            widget_flags.redraw = true;
+            return (EventPropagation::Stop, widget_flags);
         }
 
         // Handle the event with the current pen
@@ -317,6 +349,96 @@ impl PenHolder {
         }
 
         widget_flags
+    }
+
+    /// Double tap with the brush opens a text box on that spot (or edits the text under it).
+    /// Escape or a tap outside the text goes back to the brush.
+    ///
+    /// Returns true when the event was used up here and must not reach the current pen.
+    fn handle_quick_text(
+        &mut self,
+        event: &PenEvent,
+        now: Instant,
+        engine_view: &mut EngineViewMut,
+    ) -> (bool, WidgetFlags) {
+        let mut widget_flags = WidgetFlags::default();
+        let style = self.current_pen_style_w_override(&engine_view.as_im());
+        let zoom = engine_view.camera.total_zoom();
+        let near = |a: Vector2, b: Vector2| (a - b).length() * zoom <= QuickText::MAX_DISTANCE;
+        // Down is repeated while the pen moves, only the first one starts a stroke
+        let starts_stroke = self.progress != PenProgress::InProgress;
+
+        match (style, event) {
+            (PenStyle::Brush, PenEvent::Down { element, .. }) if starts_stroke => {
+                let double_tap = self.quick_text.last_tap.take().is_some_and(|(t, pos)| {
+                    now.duration_since(t) <= QuickText::DOUBLE_TAP_MAX_INTERVAL
+                        && near(pos, element.pos)
+                });
+                if !double_tap {
+                    self.quick_text.tap_start = Some((now, element.pos));
+                    return (false, widget_flags);
+                }
+                // the first tap left a dot, which is the latest history entry
+                widget_flags |= engine_view.store.undo(now);
+                engine_view.store.regenerate_rendering_in_viewport_threaded(
+                    engine_view.tasks_tx.clone(),
+                    false,
+                    engine_view.camera.viewport(),
+                    engine_view.camera.image_scale(),
+                );
+                widget_flags |= self.change_style_int(PenStyle::Typewriter, engine_view);
+                self.quick_text.from_brush = true;
+                for event in [
+                    PenEvent::Down {
+                        element: *element,
+                        modifier_keys: Default::default(),
+                    },
+                    PenEvent::Up {
+                        element: *element,
+                        modifier_keys: Default::default(),
+                    },
+                ] {
+                    let (result, wf) = self.current_pen.handle_event(event, now, engine_view);
+                    widget_flags |= wf | self.handle_pen_progress(result.progress, engine_view);
+                }
+                (true, widget_flags)
+            }
+            (PenStyle::Brush, PenEvent::Up { element, .. }) => {
+                if let Some((t, pos)) = self.quick_text.tap_start.take()
+                    && now.duration_since(t) <= QuickText::TAP_MAX_DURATION
+                    && near(pos, element.pos)
+                {
+                    self.quick_text.last_tap = Some((now, pos));
+                }
+                (false, widget_flags)
+            }
+            (PenStyle::Typewriter, PenEvent::Down { element, .. })
+                if self.quick_text.from_brush && starts_stroke =>
+            {
+                let on_text = self
+                    .current_pen
+                    .bounds_on_doc(&engine_view.as_im())
+                    .is_some_and(|b| b.contains_local_point(element.pos));
+                if !on_text {
+                    // back to the brush, and this same down already starts drawing
+                    self.quick_text = QuickText::default();
+                    widget_flags |= self.change_style_int(PenStyle::Brush, engine_view);
+                }
+                (false, widget_flags)
+            }
+            (
+                PenStyle::Typewriter,
+                PenEvent::KeyPressed {
+                    keyboard_key: KeyboardKey::Escape,
+                    ..
+                },
+            ) if self.quick_text.from_brush => {
+                self.quick_text = QuickText::default();
+                widget_flags |= self.change_style_int(PenStyle::Brush, engine_view);
+                (true, widget_flags)
+            }
+            _ => (false, widget_flags),
+        }
     }
 
     /// Handles the pen event in the global scope if the current pen has not handled it.
@@ -501,5 +623,74 @@ fn new_pen(pen_style: PenStyle) -> Pen {
         PenStyle::Eraser => Pen::Eraser(Eraser::default()),
         PenStyle::Selector => Pen::Selector(Selector::default()),
         PenStyle::Tools => Pen::Tools(Tools::default()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::Engine;
+    use crate::pens::PenStyle;
+    use p2d::math::Vector2;
+    use rnote_compose::penevent::{KeyboardKey, PenEvent};
+    use rnote_compose::penpath::Element;
+    use std::time::{Duration, Instant};
+
+    fn tap(engine: &mut Engine, pos: Vector2, at: Instant) {
+        let element = Element::new(pos, 0.5);
+        let modifier_keys = Default::default();
+        let _ = engine.handle_pen_event(
+            PenEvent::Down {
+                element,
+                modifier_keys,
+            },
+            None,
+            at,
+        );
+        let _ = engine.handle_pen_event(
+            PenEvent::Up {
+                element,
+                modifier_keys: Default::default(),
+            },
+            None,
+            at + Duration::from_millis(50),
+        );
+    }
+
+    #[test]
+    fn double_tap_opens_text_without_leaving_a_dot() {
+        let mut engine = Engine::default();
+        let _ = engine.change_pen_style(PenStyle::Brush);
+        let t = Instant::now();
+        let pos = Vector2::new(100.0, 100.0);
+
+        tap(&mut engine, pos, t);
+        assert_eq!(engine.store.stroke_keys_as_rendered().len(), 1);
+        tap(&mut engine, pos + Vector2::new(1.0, 1.0), t + Duration::from_millis(200));
+
+        assert_eq!(engine.current_pen_style_w_override(), PenStyle::Typewriter);
+        assert!(engine.store.stroke_keys_as_rendered().is_empty());
+
+        let _ = engine.handle_pen_event(
+            PenEvent::KeyPressed {
+                keyboard_key: KeyboardKey::Escape,
+                modifier_keys: Default::default(),
+            },
+            None,
+            t + Duration::from_millis(400),
+        );
+        assert_eq!(engine.current_pen_style_w_override(), PenStyle::Brush);
+    }
+
+    #[test]
+    fn two_dots_of_a_colon_stay_dots() {
+        let mut engine = Engine::default();
+        let _ = engine.change_pen_style(PenStyle::Brush);
+        let t = Instant::now();
+
+        tap(&mut engine, Vector2::new(100.0, 100.0), t);
+        tap(&mut engine, Vector2::new(100.0, 112.0), t + Duration::from_millis(200));
+
+        assert_eq!(engine.current_pen_style_w_override(), PenStyle::Brush);
+        assert_eq!(engine.store.stroke_keys_as_rendered().len(), 2);
     }
 }

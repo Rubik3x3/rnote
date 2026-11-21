@@ -340,6 +340,11 @@ impl RnQuickAccessBar {
 
 fn default_items() -> Vec<QuickItem> {
     [
+        "width-thin",
+        "width-medium",
+        "width-thick",
+        "brush-style-solid",
+        "brush-style-marker",
         "shape-rectangle",
         "shape-ellipse",
         "shape-arrow",

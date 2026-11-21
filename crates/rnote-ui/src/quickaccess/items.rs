@@ -8,6 +8,7 @@ use crate::penssidebar::shaperpage::shape_builder_type_icons_to_display_name;
 use gettextrs::gettext;
 use gtk4::{glib, prelude::*};
 use rnote_compose::builders::ShapeBuilderType;
+use rnote_engine::pens::pensconfig::brushconfig::BrushStyle;
 
 /// The groups in the item chooser.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -47,6 +48,27 @@ pub(crate) enum ActionItem {
     AddPage,
     Undo,
     Redo,
+    CompactSpace,
+}
+
+/// A brush stroke width preset, in document px.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum WidthItem {
+    Thin,
+    Medium,
+    Thick,
+}
+
+impl WidthItem {
+    const ALL: [WidthItem; 3] = [WidthItem::Thin, WidthItem::Medium, WidthItem::Thick];
+
+    fn width(self) -> f64 {
+        match self {
+            Self::Thin => 1.5,
+            Self::Medium => 3.0,
+            Self::Thick => 6.0,
+        }
+    }
 }
 
 /// An item of the quick access bar.
@@ -55,7 +77,17 @@ pub(crate) enum QuickItem {
     Pen(PenItem),
     Shape(ShapeBuilderType),
     Action(ActionItem),
+    /// Switches to the brush with this stroke width, one tap instead of the brush menu.
+    Width(WidthItem),
+    /// Switches to the brush with this style (pen, marker, ...).
+    BrushStyle(BrushStyle),
 }
+
+const BRUSH_STYLES: [(BrushStyle, &str); 3] = [
+    (BrushStyle::Solid, "brush-style-solid"),
+    (BrushStyle::Marker, "brush-style-marker"),
+    (BrushStyle::Textured, "brush-style-textured"),
+];
 
 const SHAPES: [(ShapeBuilderType, &str); 13] = [
     (ShapeBuilderType::Line, "shape-line"),
@@ -79,6 +111,8 @@ const SHAPES: [(ShapeBuilderType, &str); 13] = [
 impl QuickItem {
     /// Every available item, in the order shown in the chooser.
     pub(crate) fn all() -> Vec<QuickItem> {
+        let widths = WidthItem::ALL.map(QuickItem::Width);
+        let styles = BRUSH_STYLES.map(|(style, _)| QuickItem::BrushStyle(style));
         let pens = [
             PenItem::Brush,
             PenItem::Eraser,
@@ -94,10 +128,17 @@ impl QuickItem {
             ActionItem::AddPage,
             ActionItem::Undo,
             ActionItem::Redo,
+            ActionItem::CompactSpace,
         ]
         .map(QuickItem::Action);
 
-        pens.into_iter().chain(shapes).chain(actions).collect()
+        widths
+            .into_iter()
+            .chain(styles)
+            .chain(pens)
+            .chain(shapes)
+            .chain(actions)
+            .collect()
     }
 
     /// The stable id, used to store the items in the settings.
@@ -118,6 +159,15 @@ impl QuickItem {
             Self::Action(ActionItem::AddPage) => "add-page",
             Self::Action(ActionItem::Undo) => "undo",
             Self::Action(ActionItem::Redo) => "redo",
+            Self::Action(ActionItem::CompactSpace) => "compact-space",
+            Self::Width(WidthItem::Thin) => "width-thin",
+            Self::Width(WidthItem::Medium) => "width-medium",
+            Self::Width(WidthItem::Thick) => "width-thick",
+            Self::BrushStyle(style) => BRUSH_STYLES
+                .iter()
+                .find(|(s, _)| *s == style)
+                .map(|(_, id)| *id)
+                .unwrap_or("brush-style-solid"),
         }
     }
 
@@ -127,7 +177,7 @@ impl QuickItem {
 
     pub(crate) fn group(self) -> Group {
         match self {
-            Self::Pen(_) => Group::Tools,
+            Self::Pen(_) | Self::Width(_) | Self::BrushStyle(_) => Group::Tools,
             Self::Shape(_) => Group::Shapes,
             Self::Action(_) => Group::Insert,
         }
@@ -146,6 +196,13 @@ impl QuickItem {
             Self::Action(ActionItem::AddPage) => "list-add-symbolic".into(),
             Self::Action(ActionItem::Undo) => "edit-undo-symbolic".into(),
             Self::Action(ActionItem::Redo) => "edit-redo-symbolic".into(),
+            Self::Action(ActionItem::CompactSpace) => "pen-tools-verticalspacetool-symbolic".into(),
+            Self::Width(WidthItem::Thin) => "stroke-width-thin-symbolic".into(),
+            Self::Width(WidthItem::Medium) => "stroke-width-medium-symbolic".into(),
+            Self::Width(WidthItem::Thick) => "stroke-width-thick-symbolic".into(),
+            Self::BrushStyle(BrushStyle::Solid) => "pen-brush-style-solid-symbolic".into(),
+            Self::BrushStyle(BrushStyle::Marker) => "pen-brush-style-marker-symbolic".into(),
+            Self::BrushStyle(BrushStyle::Textured) => "pen-brush-style-textured-symbolic".into(),
         }
     }
 
@@ -162,6 +219,13 @@ impl QuickItem {
             Self::Action(ActionItem::AddPage) => gettext("Add Page"),
             Self::Action(ActionItem::Undo) => gettext("Undo"),
             Self::Action(ActionItem::Redo) => gettext("Redo"),
+            Self::Action(ActionItem::CompactSpace) => gettext("Close Empty Space"),
+            Self::Width(WidthItem::Thin) => gettext("Thin Stroke"),
+            Self::Width(WidthItem::Medium) => gettext("Medium Stroke"),
+            Self::Width(WidthItem::Thick) => gettext("Thick Stroke"),
+            Self::BrushStyle(BrushStyle::Solid) => gettext("Pen"),
+            Self::BrushStyle(BrushStyle::Marker) => gettext("Marker"),
+            Self::BrushStyle(BrushStyle::Textured) => gettext("Pencil"),
         }
     }
 
@@ -198,8 +262,27 @@ impl QuickItem {
                     ActionItem::AddPage => "add-page-to-doc",
                     ActionItem::Undo => "undo",
                     ActionItem::Redo => "redo",
+                    ActionItem::CompactSpace => "compact-vertical-space",
                 };
                 activate_win_action(appwindow, name, None);
+            }
+            Self::Width(width) => {
+                activate_win_action(appwindow, "pen-style", Some(&"brush".to_variant()));
+                // the picker's notify handler stores it in the config of the current brush style
+                appwindow
+                    .overlays()
+                    .penssidebar()
+                    .brush_page()
+                    .stroke_width_picker()
+                    .set_stroke_width(width.width());
+            }
+            Self::BrushStyle(style) => {
+                activate_win_action(appwindow, "pen-style", Some(&"brush".to_variant()));
+                appwindow
+                    .overlays()
+                    .penssidebar()
+                    .brush_page()
+                    .set_brush_style(style);
             }
         }
     }

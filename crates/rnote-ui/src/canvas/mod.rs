@@ -73,6 +73,8 @@ mod imp {
         pub(crate) pointer_controller: EventControllerLegacy,
         pub(crate) key_controller: EventControllerKey,
         pub(crate) key_controller_im_context: IMMulticontext,
+        /// Drops the random straight lines of tablet glitches, see [super::input::JumpFilter].
+        pub(crate) jump_filter: RefCell<super::input::JumpFilter>,
         pub(crate) drop_target: DropTarget,
         pub(crate) drawing_cursor_enabled: Cell<bool>,
 
@@ -180,6 +182,7 @@ mod imp {
                 pointer_controller,
                 key_controller,
                 key_controller_im_context,
+                jump_filter: RefCell::default(),
                 drop_target,
                 drawing_cursor_enabled: Cell::new(false),
 
@@ -1011,11 +1014,16 @@ impl RnCanvas {
     }
 
     pub(crate) fn set_text_preprocessing(&self, enable: bool) {
+        let im_context = &self.imp().key_controller_im_context;
         if enable {
-            self.imp()
-                .key_controller
-                .set_im_context(Some(&self.imp().key_controller_im_context));
+            // The macOS input method needs to know the widget (and its window) to compose
+            // dead keys like ´ + a = á; without it the accent is silently dropped.
+            im_context.set_client_widget(Some(self));
+            im_context.focus_in();
+            self.imp().key_controller.set_im_context(Some(im_context));
         } else {
+            im_context.focus_out();
+            im_context.reset();
             self.imp()
                 .key_controller
                 .set_im_context(None::<&IMMulticontext>);

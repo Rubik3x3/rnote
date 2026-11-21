@@ -1,5 +1,6 @@
 // Imports
 use super::RnCanvas;
+use gtk4::subclass::prelude::ObjectSubclassIsExt;
 use gtk4::{Native, gdk, glib, graphene, prelude::*};
 use p2d::math::Vector2;
 use rnote_compose::penevent::{KeyboardKey, ModifierKey, PenEvent, PenState, ShortcutKey};
@@ -32,7 +33,7 @@ pub(crate) fn handle_pointer_controller_event(
     let gdk_event_type = event.event_type();
     let gdk_modifiers = event.modifier_state();
     let backlog_policy = canvas.engine_ref().penholder.backlog_policy();
-    let is_stylus = event_is_stylus(event);
+    let mut is_stylus = event_is_stylus(event);
 
     //std::thread::sleep(std::time::Duration::from_millis(100));
     //super::input::debug_gdk_event(event);
@@ -47,10 +48,17 @@ pub(crate) fn handle_pointer_controller_event(
     if is_stylus {
         stylus_active = gdk_event_type != gdk::EventType::ProximityOut;
     } else if stylus_active {
-        // A deliberate mouse click hands control back to the mouse.
         match gdk_event_type {
             gdk::EventType::ButtonPress | gdk::EventType::ButtonRelease => {
-                stylus_active = false;
+                let button = event.downcast_ref::<gdk::ButtonEvent>().map(|e| e.button());
+                if matches!(button, Some(gdk::BUTTON_SECONDARY | gdk::BUTTON_MIDDLE)) {
+                    // On macOS the stylus side buttons sometimes arrive without a device tool,
+                    // which would map them to the mouse shortcut (e.g. Shaper instead of Eraser).
+                    is_stylus = true;
+                } else {
+                    // A deliberate mouse click hands control back to the mouse.
+                    stylus_active = false;
+                }
             }
             _ => return (glib::Propagation::Proceed, pen_state, stylus_active),
         }
@@ -200,6 +208,9 @@ pub(crate) fn handle_pointer_controller_event(
                 }
             }
 
+            if pen_state != PenState::Down {
+                canvas.imp().jump_filter.borrow_mut().reset();
+            }
             match pen_state {
                 PenState::Up => {
                     canvas.enable_drawing_cursor(false);
@@ -230,6 +241,42 @@ pub(crate) fn handle_pointer_controller_event(
                     propagation = ep.into_glib();
                 }
                 PenState::Down => {
+                    let jump = if is_stylus {
+                        let zoom = canvas.engine_ref().camera.total_zoom();
+                        canvas
+                            .imp()
+                            .jump_filter
+                            .borrow_mut()
+                            .on_down(element, event_time, zoom)
+                    } else {
+                        JumpAction::Keep
+                    };
+                    match jump {
+                        JumpAction::Keep => {}
+                        JumpAction::Drop => continue,
+                        JumpAction::Restart { end, start } => {
+                            // the pen really moved without lifting: end the stroke instead
+                            // of drawing a straight line to the new spot
+                            let (_, wf) = canvas.engine_mut().handle_pen_event(
+                                PenEvent::Up {
+                                    element: end,
+                                    modifier_keys: modifier_keys.clone(),
+                                },
+                                pen_mode,
+                                event_time,
+                            );
+                            widget_flags |= wf;
+                            let (_, wf) = canvas.engine_mut().handle_pen_event(
+                                PenEvent::Down {
+                                    element: start.0,
+                                    modifier_keys: modifier_keys.clone(),
+                                },
+                                pen_mode,
+                                start.1,
+                            );
+                            widget_flags |= wf;
+                        }
+                    }
                     canvas.grab_focus();
                     canvas.enable_drawing_cursor(true);
 
@@ -543,6 +590,116 @@ pub(crate) fn retrieve_keyboard_key(gdk_key: gdk::Key) -> KeyboardKey {
             gdk::Key::End => KeyboardKey::End,
             gdk::Key::KP_End => KeyboardKey::End,
             _ => KeyboardKey::Unsupported,
+        }
+    }
+}
+
+/// What to do with a stylus sample, decided by [JumpFilter].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum JumpAction {
+    /// A normal sample.
+    Keep,
+    /// Skip it, it may be a glitch (decided with the next sample).
+    Drop,
+    /// The pen really jumped: finish the stroke at `end` and start a new one at `start`,
+    /// then handle the current sample normally.
+    Restart {
+        end: Element,
+        start: (Element, Instant),
+    },
+}
+
+/// Removes the straight "random lines" some tablets produce: a single sample far away from
+/// the stroke (a glitch, or a lost pen-up so the next stroke gets connected to the last one).
+///
+/// Fast real strokes still work: they arrive as many close samples, while a glitch is one sample
+/// further away than a hand can move between two reports. A far sample is held back until the next
+/// one shows whether the pen went back (glitch, dropped) or stayed there (new stroke, no line).
+#[derive(Debug, Default)]
+pub(crate) struct JumpFilter {
+    /// Last accepted sample, with its position in screen px.
+    last: Option<(Element, Vector2)>,
+    /// The far sample waiting for a decision.
+    pending: Option<(Element, Instant, Vector2)>,
+}
+
+impl JumpFilter {
+    /// Longest distance in screen px between two consecutive samples of one stroke.
+    /// Tablets report at 100-250 Hz, so this is ~10-30 m/s on the screen, beyond any hand.
+    const MAX_STEP: f64 = 120.0;
+
+    /// Call for every pen-down sample. `zoom` converts document to screen distances.
+    pub(crate) fn on_down(&mut self, element: Element, time: Instant, zoom: f64) -> JumpAction {
+        let screen = element.pos * zoom;
+        let near = |a: Vector2| (a - screen).length() <= Self::MAX_STEP;
+        let last = self.last;
+
+        let action = match (last, self.pending.take()) {
+            // first sample of a stroke
+            (None, _) => JumpAction::Keep,
+            // back next to the stroke: the far sample was a glitch
+            (Some((_, last_screen)), Some(_)) if near(last_screen) => JumpAction::Keep,
+            // stayed at the far spot: the pen really moved there
+            (Some((end, _)), Some((start, start_time, start_screen))) if near(start_screen) => {
+                JumpAction::Restart {
+                    end,
+                    start: (start, start_time),
+                }
+            }
+            // a far sample, decide with the next one
+            (Some((_, last_screen)), _) if !near(last_screen) => {
+                self.pending = Some((element, time, screen));
+                return JumpAction::Drop;
+            }
+            _ => JumpAction::Keep,
+        };
+        self.last = Some((element, screen));
+        action
+    }
+
+    /// Call when the pen is lifted: a far sample right before lifting is always a glitch.
+    pub(crate) fn reset(&mut self) {
+        *self = Self::default();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn el(x: f64) -> Element {
+        Element::new(Vector2::new(x, 0.0), 0.5)
+    }
+
+    #[test]
+    fn single_far_sample_is_dropped() {
+        let mut f = JumpFilter::default();
+        let t = Instant::now();
+        assert_eq!(f.on_down(el(0.0), t, 1.0), JumpAction::Keep);
+        assert_eq!(f.on_down(el(10.0), t, 1.0), JumpAction::Keep);
+        assert_eq!(f.on_down(el(900.0), t, 1.0), JumpAction::Drop);
+        assert_eq!(f.on_down(el(20.0), t, 1.0), JumpAction::Keep);
+    }
+
+    #[test]
+    fn staying_far_starts_a_new_stroke() {
+        let mut f = JumpFilter::default();
+        let t = Instant::now();
+        f.on_down(el(0.0), t, 1.0);
+        assert_eq!(f.on_down(el(900.0), t, 1.0), JumpAction::Drop);
+        assert!(matches!(
+            f.on_down(el(905.0), t, 1.0),
+            JumpAction::Restart { .. }
+        ));
+        assert_eq!(f.on_down(el(910.0), t, 1.0), JumpAction::Keep);
+    }
+
+    #[test]
+    fn fast_strokes_with_close_samples_pass() {
+        let mut f = JumpFilter::default();
+        let t = Instant::now();
+        for i in 0..50 {
+            assert_eq!(f.on_down(el(i as f64 * 60.0), t, 1.0), JumpAction::Keep);
         }
     }
 }

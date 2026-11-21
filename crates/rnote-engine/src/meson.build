@@ -9,6 +9,7 @@ rnote_engine_sources = files(
     'document/mod.rs',
     'drawable.rs',
     'engine/animation.rs',
+    'engine/compact.rs',
     'engine/config.rs',
     'engine/export.rs',
     'engine/import.rs',

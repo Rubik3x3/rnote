@@ -108,6 +108,12 @@ impl RnSidebar {
         imp.appmenu.get().init(appwindow);
         imp.workspacebrowser.get().init(appwindow);
         imp.settings_panel.get().init(appwindow);
+        imp.sidebar_stack.add_titled_with_icon(
+            &crate::transcription::build_page(appwindow),
+            Some("transcription_page"),
+            &gettextrs::gettext("Transcription"),
+            "pen-typewriter-symbolic",
+        );
 
         imp.left_close_button.connect_clicked(clone!(
             #[weak]

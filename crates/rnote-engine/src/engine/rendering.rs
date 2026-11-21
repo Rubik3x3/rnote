@@ -37,7 +37,11 @@ impl Engine {
                 };
 
                 for split_bounds in viewport.split_extended_origin_aligned(
-                    self.document.config.background.tile_size(),
+                    self.document
+                        .config
+                        .background
+                        .on_screen(self.camera.zoom())
+                        .tile_size(),
                     SplitOrder::default(),
                 ) {
                     rendernodes.push(
@@ -130,7 +134,11 @@ impl Engine {
         let image_scale = self.camera.image_scale();
         let scale_factor = self.camera.scale_factor();
 
-        match self.document.config.background.gen_tile_image(image_scale) {
+        match self
+            .document
+            .config
+            .background
+            .gen_tile_image(image_scale, self.camera.zoom()) {
             Ok(image) => {
                 self.background_tile_image = Some(image);
             }

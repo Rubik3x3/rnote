@@ -960,3 +960,43 @@ impl Engine {
         oneshot_receiver
     }
 }
+
+impl Engine {
+    /// PNG of what should be transcribed by the AI: the selection when there is one,
+    /// otherwise the strokes visible in the viewport. Drawn on white with print colors so
+    /// a dark theme doesn't confuse the model. `Ok(None)` when there is nothing to send.
+    pub fn export_for_transcription(&self) -> oneshot::Receiver<anyhow::Result<Option<Vec<u8>>>> {
+        let (sender, receiver) = oneshot::channel();
+        let mut keys = self.store.selection_keys_as_rendered();
+        if keys.is_empty() {
+            keys = self
+                .store
+                .stroke_keys_as_rendered_intersecting_bounds(self.camera.viewport());
+        }
+        let content = (!keys.is_empty()).then(|| self.stroke_content_from_sorted_keys(keys));
+
+        rayon::spawn(move || {
+            let result = || -> anyhow::Result<Option<Vec<u8>>> {
+                let Some(content) = content else {
+                    return Ok(None);
+                };
+                let Some(svg) = content.gen_svg(true, false, true, 16.0)? else {
+                    return Ok(None);
+                };
+                // ~1200 px on the long side: enough to read handwriting, and local vision
+                // models get very slow or hang with bigger images. Tiny selections are
+                // scaled up to at most 3x.
+                let size = svg.bounds.extents();
+                let scale = (1200.0 / size[0].max(size[1])).clamp(0.1, 3.0);
+                Ok(Some(
+                    svg.gen_image(scale)?
+                        .into_encoded_bytes(image::ImageFormat::Png, None)?,
+                ))
+            };
+            if sender.send(result()).is_err() {
+                error!("Sending transcription image failed, receiver already dropped.");
+            }
+        });
+        receiver
+    }
+}

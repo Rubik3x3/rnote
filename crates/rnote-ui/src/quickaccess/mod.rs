@@ -345,6 +345,8 @@ fn default_items() -> Vec<QuickItem> {
         "width-thick",
         "brush-style-solid",
         "brush-style-marker",
+        "transcription",
+        "compact-space",
         "shape-rectangle",
         "shape-ellipse",
         "shape-arrow",

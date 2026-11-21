@@ -10,8 +10,9 @@
         <child type="top">
           <object class="AdwHeaderBar" id="headerbar">
             <property name="title-widget">
-              <object class="AdwViewSwitcherTitle">
+              <object class="AdwViewSwitcher">
                 <property name="stack">sidebar_stack</property>
+                <property name="policy">narrow</property>
               </object>
             </property>
             <child type="start">

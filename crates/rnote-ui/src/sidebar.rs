@@ -112,7 +112,7 @@ impl RnSidebar {
             &crate::transcription::build_page(appwindow),
             Some("transcription_page"),
             &gettextrs::gettext("Transcription"),
-            "pen-typewriter-symbolic",
+            "transcription-symbolic",
         );
 
         imp.left_close_button.connect_clicked(clone!(

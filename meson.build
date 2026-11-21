@@ -214,6 +214,20 @@ if build_ui == true
         ],
     )
 
+    # macOS: on-device handwriting recognition helper for the transcription tab
+    swiftc = find_program('swiftc', required: false)
+    if host_machine.system() == 'darwin' and swiftc.found()
+        custom_target(
+            'vision-ocr',
+            build_by_default: true,
+            input: 'misc/vision-ocr/vision-ocr.swift',
+            output: 'rnote-vision-ocr',
+            install: true,
+            install_dir: bindir,
+            command: [swiftc, '-O', '@INPUT@', '-o', '@OUTPUT@'],
+        )
+    endif
+
     meson.add_install_script(
         'build-aux/meson_post_install.py',
         datadir,

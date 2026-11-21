@@ -40,6 +40,8 @@ impl RnAppWindow {
         let action_fullscreen = gio::PropertyAction::new("fullscreen", self, "fullscreened");
         self.add_action(&action_fullscreen);
         let action_open_settings = gio::SimpleAction::new("open-settings", None);
+        let action_open_transcription = gio::SimpleAction::new("open-transcription", None);
+        self.add_action(&action_open_transcription);
         self.add_action(&action_open_settings);
         let action_about = gio::SimpleAction::new("about", None);
         self.add_action(&action_about);
@@ -221,6 +223,19 @@ impl RnAppWindow {
                     .sidebar_stack()
                     .set_visible_child_name("settings_page");
                 appwindow.split_view().set_show_sidebar(true);
+            }
+        ));
+
+        // Open the transcription tab (toggles the sidebar when it is already showing it)
+        action_open_transcription.connect_activate(clone!(
+            #[weak(rename_to = appwindow)]
+            self,
+            move |_, _| {
+                let stack = appwindow.sidebar().sidebar_stack();
+                let showing = appwindow.split_view().shows_sidebar()
+                    && stack.visible_child_name().as_deref() == Some("transcription_page");
+                stack.set_visible_child_name("transcription_page");
+                appwindow.split_view().set_show_sidebar(!showing);
             }
         ));
 
@@ -1286,6 +1301,7 @@ impl RnAppWindow {
         app.set_accels_for_action("win.save-doc", &["<Primary>s"]);
         app.set_accels_for_action("win.save-doc-as", &["<Primary><Shift>s"]);
         app.set_accels_for_action("win.new-tab", &["<Primary>t"]);
+        app.set_accels_for_action("win.open-transcription", &["<Primary><Shift>t"]);
         app.set_accels_for_action("win.snap-positions", &["<Primary><Shift>p"]);
         app.set_accels_for_action("win.return-origin-page", &["<Primary>Home"]);
         app.set_accels_for_action("win.clear-doc", &["<Primary>l"]);

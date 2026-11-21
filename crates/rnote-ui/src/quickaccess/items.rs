@@ -49,6 +49,7 @@ pub(crate) enum ActionItem {
     Undo,
     Redo,
     CompactSpace,
+    Transcription,
 }
 
 /// A brush stroke width preset, in document px.
@@ -129,6 +130,7 @@ impl QuickItem {
             ActionItem::Undo,
             ActionItem::Redo,
             ActionItem::CompactSpace,
+            ActionItem::Transcription,
         ]
         .map(QuickItem::Action);
 
@@ -160,6 +162,7 @@ impl QuickItem {
             Self::Action(ActionItem::Undo) => "undo",
             Self::Action(ActionItem::Redo) => "redo",
             Self::Action(ActionItem::CompactSpace) => "compact-space",
+            Self::Action(ActionItem::Transcription) => "transcription",
             Self::Width(WidthItem::Thin) => "width-thin",
             Self::Width(WidthItem::Medium) => "width-medium",
             Self::Width(WidthItem::Thick) => "width-thick",
@@ -197,6 +200,7 @@ impl QuickItem {
             Self::Action(ActionItem::Undo) => "edit-undo-symbolic".into(),
             Self::Action(ActionItem::Redo) => "edit-redo-symbolic".into(),
             Self::Action(ActionItem::CompactSpace) => "pen-tools-verticalspacetool-symbolic".into(),
+            Self::Action(ActionItem::Transcription) => "transcription-symbolic".into(),
             Self::Width(WidthItem::Thin) => "stroke-width-thin-symbolic".into(),
             Self::Width(WidthItem::Medium) => "stroke-width-medium-symbolic".into(),
             Self::Width(WidthItem::Thick) => "stroke-width-thick-symbolic".into(),
@@ -220,6 +224,7 @@ impl QuickItem {
             Self::Action(ActionItem::Undo) => gettext("Undo"),
             Self::Action(ActionItem::Redo) => gettext("Redo"),
             Self::Action(ActionItem::CompactSpace) => gettext("Close Empty Space"),
+            Self::Action(ActionItem::Transcription) => gettext("Transcription"),
             Self::Width(WidthItem::Thin) => gettext("Thin Stroke"),
             Self::Width(WidthItem::Medium) => gettext("Medium Stroke"),
             Self::Width(WidthItem::Thick) => gettext("Thick Stroke"),
@@ -263,6 +268,7 @@ impl QuickItem {
                     ActionItem::Undo => "undo",
                     ActionItem::Redo => "redo",
                     ActionItem::CompactSpace => "compact-vertical-space",
+                    ActionItem::Transcription => "open-transcription",
                 };
                 activate_win_action(appwindow, name, None);
             }

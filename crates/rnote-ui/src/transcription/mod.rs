@@ -1,16 +1,21 @@
 //! The "Transcription" sidebar tab: turns the handwriting of the selection (or of what is visible)
 //! into Markdown text with LaTeX math, so it can be copied and pasted into an AI chat.
 //!
-//! Everything runs offline with a local vision model served by Ollama (https://ollama.com).
+//! Everything runs offline: "Quick Text" uses Apple's on-device handwriting recognition through
+//! the `rnote-vision-ocr` helper (macOS only, instant, plain text), "Transcribe" a local vision
+//! model served by Ollama (https://ollama.com, slower, also reads math as LaTeX).
 //! Built by `RnSidebar::init`.
+
+// Modules
+mod preview;
 
 // Imports
 use crate::RnAppWindow;
 use base64::Engine as _;
 use gettextrs::gettext;
 use gtk4::{
-    Align, Box, Button, Label, Orientation, ScrolledWindow, TextView, WrapMode, gdk, gio, glib,
-    glib::clone, prelude::*,
+    Align, Box, Button, ContentFit, Label, Orientation, Picture, ScrolledWindow, Stack, TextView,
+    ToggleButton, WrapMode, gdk, gio, glib, glib::clone, prelude::*,
 };
 use std::process::Command;
 
@@ -48,29 +53,58 @@ pub(crate) fn build_page(appwindow: &RnAppWindow) -> gtk4::Widget {
 
     let hint = Label::builder()
         .label(gettext(
-            "Converts the selection, or what is visible if nothing is selected, into text and LaTeX. Runs offline with Ollama.",
+            "Converts the selection, or what is visible if nothing is selected. Quick Text: instant, plain text only. Transcribe: text and math as LaTeX with Ollama, slower. Both run offline.",
         ))
         .wrap(true)
         .xalign(0.0)
         .css_classes(["dim-label", "caption"])
         .build();
-    let buttons = Box::builder().spacing(6).build();
+
+    // the two ways to transcribe, same look so neither seems secondary
+    let actions = Box::builder().spacing(6).homogeneous(true).build();
+    let quick_text = Button::builder()
+        .label(gettext("Quick Text"))
+        .tooltip_text(gettext("Instant, plain text only"))
+        .css_classes(["pill"])
+        .visible(vision_helper().is_some())
+        .build();
     let transcribe = Button::builder()
         .label(gettext("Transcribe"))
-        .css_classes(["suggested-action", "pill"])
-        .hexpand(true)
+        .tooltip_text(gettext("Text and math as LaTeX, takes a few seconds"))
+        .css_classes(["pill"])
         .build();
+    actions.append(&quick_text);
+    actions.append(&transcribe);
+
+    // what the result shows: the LaTeX source to copy, or how it looks
+    let view_bar = Box::builder().spacing(6).build();
+    let show_code = ToggleButton::builder().label(gettext("LaTeX")).build();
+    let show_preview = ToggleButton::builder()
+        .label(gettext("Preview"))
+        .group(&show_code)
+        .build();
+    // the preview is what reads best, the source is one tap away
+    show_preview.set_active(preview::available());
+    show_code.set_active(!preview::available());
+    let toggles = Box::builder().css_classes(["linked"]).build();
+    toggles.append(&show_code);
+    toggles.append(&show_preview);
+    toggles.set_visible(preview::available());
     let copy = Button::builder()
         .icon_name("edit-copy-symbolic")
         .tooltip_text(gettext("Copy All"))
+        .css_classes(["flat", "circular"])
+        .halign(Align::End)
+        .hexpand(true)
         .build();
     let clear = Button::builder()
         .icon_name("user-trash-symbolic")
         .tooltip_text(gettext("Clear"))
+        .css_classes(["flat", "circular"])
         .build();
-    buttons.append(&transcribe);
-    buttons.append(&copy);
-    buttons.append(&clear);
+    view_bar.append(&toggles);
+    view_bar.append(&copy);
+    view_bar.append(&clear);
 
     let status = Label::builder()
         .xalign(0.0)
@@ -85,17 +119,99 @@ pub(crate) fn build_page(appwindow: &RnAppWindow) -> gtk4::Widget {
         .left_margin(8)
         .right_margin(8)
         .build();
+    let picture = Picture::builder()
+        .halign(Align::Start)
+        .valign(Align::Start)
+        .content_fit(ContentFit::ScaleDown)
+        .margin_top(8)
+        .margin_start(8)
+        .margin_end(8)
+        .build();
+    let content = Stack::new();
+    content.add_named(&text_view, Some("code"));
+    content.add_named(&picture, Some("preview"));
     let scroller = ScrolledWindow::builder()
-        .child(&text_view)
+        .child(&content)
         .vexpand(true)
-        .valign(Align::Fill)
+        .hscrollbar_policy(gtk4::PolicyType::Never)
         .css_classes(["card"])
         .build();
 
     page.append(&hint);
-    page.append(&buttons);
+    page.append(&actions);
+    page.append(&view_bar);
     page.append(&status);
     page.append(&scroller);
+
+    // weak: the text buffer keeps this closure alive, a strong ref back would never be freed
+    let refresh_preview = clone!(
+        #[weak]
+        text_view,
+        #[weak]
+        status,
+        #[weak]
+        picture,
+        #[weak]
+        content,
+        #[weak]
+        show_preview,
+        move || {
+            if !show_preview.is_active() {
+                content.set_visible_child_name("code");
+                return;
+            }
+            content.set_visible_child_name("preview");
+            let buffer = text_view.buffer();
+            let text = buffer
+                .text(&buffer.start_iter(), &buffer.end_iter(), false)
+                .to_string();
+            if text.trim().is_empty() {
+                // an empty document has no page for dvipng to draw
+                picture.set_paintable(None::<&gdk::Paintable>);
+                return;
+            }
+            let dark = adw::StyleManager::default().is_dark();
+            let scale = picture.scale_factor().max(1);
+            glib::spawn_future_local(clone!(
+                #[weak]
+                picture,
+                #[weak]
+                status,
+                async move {
+                    // 110 dpi looks like the body text, times the screen scale to stay sharp
+                    let dpi = 110 * scale as u32;
+                    let result = gio::spawn_blocking(move || preview::render(&text, dark, dpi))
+                        .await
+                        .unwrap_or_else(|_| Err("preview thread panicked".into()));
+                    match result
+                        .and_then(|png| gdk::Texture::from_filename(png).map_err(|e| e.to_string()))
+                    {
+                        Ok(texture) => {
+                            // the PNG has `scale` pixels per point, show it at its real size
+                            picture.set_size_request(
+                                texture.width() / scale,
+                                texture.height() / scale,
+                            );
+                            picture.set_paintable(Some(&texture));
+                        }
+                        Err(e) => status.set_label(&e),
+                    }
+                }
+            ));
+        }
+    );
+    let refresh_preview = std::rc::Rc::new(refresh_preview);
+    // on the preview button: when the LaTeX one emits, the preview isn't active yet
+    show_preview.connect_toggled(clone!(
+        #[strong]
+        refresh_preview,
+        move |_| refresh_preview()
+    ));
+    text_view.buffer().connect_changed(clone!(
+        #[strong]
+        refresh_preview,
+        move |_| refresh_preview()
+    ));
 
     copy.connect_clicked(clone!(
         #[weak]
@@ -103,10 +219,7 @@ pub(crate) fn build_page(appwindow: &RnAppWindow) -> gtk4::Widget {
         move |_| {
             let buffer = text_view.buffer();
             let text = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false);
-            gdk::Display::default()
-                .unwrap()
-                .clipboard()
-                .set_text(&text);
+            gdk::Display::default().unwrap().clipboard().set_text(&text);
         }
     ));
     clear.connect_clicked(clone!(
@@ -114,7 +227,23 @@ pub(crate) fn build_page(appwindow: &RnAppWindow) -> gtk4::Widget {
         text_view,
         move |_| text_view.buffer().set_text("")
     ));
-    transcribe.connect_clicked(clone!(
+    connect_transcribe(&quick_text, appwindow, &text_view, &status, recognize_text);
+    connect_transcribe(&transcribe, appwindow, &text_view, &status, transcribe_png);
+
+    page.upcast()
+}
+
+/// Makes `button` export the selection or the visible strokes, run `engine` on the PNG off the
+/// main thread and append the result to `text_view`. `engine` returns (engine name, text) or an
+/// error message for the user.
+fn connect_transcribe(
+    button: &Button,
+    appwindow: &RnAppWindow,
+    text_view: &TextView,
+    status: &Label,
+    engine: fn(&[u8]) -> Result<(String, String), String>,
+) {
+    button.connect_clicked(clone!(
         #[weak]
         appwindow,
         #[weak]
@@ -133,7 +262,7 @@ pub(crate) fn build_page(appwindow: &RnAppWindow) -> gtk4::Widget {
                 button,
                 async move {
                     let result = match receiver.await {
-                        Ok(Ok(Some(png))) => gio::spawn_blocking(move || transcribe_png(&png))
+                        Ok(Ok(Some(png))) => gio::spawn_blocking(move || engine(&png))
                             .await
                             .unwrap_or_else(|_| Err("transcription thread panicked".into())),
                         Ok(Ok(None)) => Err(gettext("There is nothing to transcribe here.")),
@@ -141,14 +270,14 @@ pub(crate) fn build_page(appwindow: &RnAppWindow) -> gtk4::Widget {
                         Err(e) => Err(format!("{e:?}")),
                     };
                     match result {
-                        Ok((model, text)) => {
+                        Ok((engine_name, text)) => {
                             let buffer = text_view.buffer();
                             let mut end = buffer.end_iter();
                             if end.offset() > 0 {
                                 buffer.insert(&mut end, "\n\n");
                             }
                             buffer.insert(&mut end, text.trim());
-                            status.set_label(&format!("{} ({model})", gettext("Done")));
+                            status.set_label(&format!("{} ({engine_name})", gettext("Done")));
                         }
                         Err(e) => status.set_label(&e),
                     }
@@ -157,8 +286,32 @@ pub(crate) fn build_page(appwindow: &RnAppWindow) -> gtk4::Widget {
             ));
         }
     ));
+}
 
-    page.upcast()
+/// The `rnote-vision-ocr` helper installed next to the app binary, if there is one (macOS builds).
+fn vision_helper() -> Option<std::path::PathBuf> {
+    let helper = std::env::current_exe()
+        .ok()?
+        .with_file_name("rnote-vision-ocr");
+    helper.is_file().then_some(helper)
+}
+
+/// Apple Vision handwriting recognition: instant and offline, but plain text only (math comes out
+/// garbled). Blocking, run it off the main thread.
+fn recognize_text(png: &[u8]) -> Result<(String, String), String> {
+    let helper = vision_helper().ok_or("rnote-vision-ocr is not installed")?;
+    let image = std::env::temp_dir().join(format!("rnote-ocr-{}.png", std::process::id()));
+    std::fs::write(&image, png).map_err(|e| e.to_string())?;
+    let out = Command::new(helper).arg(&image).output();
+    let _ = std::fs::remove_file(&image);
+    let out = out.map_err(|e| e.to_string())?;
+    if !out.status.success() {
+        return Err(String::from_utf8_lossy(&out.stderr).into_owned());
+    }
+    Ok((
+        "Apple Vision".into(),
+        String::from_utf8_lossy(&out.stdout).into_owned(),
+    ))
 }
 
 /// Sends the PNG to the local model. Blocking, run it off the main thread.
@@ -188,7 +341,8 @@ fn transcribe_png(png: &[u8]) -> Result<(String, String), String> {
         }],
     });
     // the body goes through a file: a base64 image is too long for a command line argument
-    let body_file = std::env::temp_dir().join(format!("rnote-transcribe-{}.json", std::process::id()));
+    let body_file =
+        std::env::temp_dir().join(format!("rnote-transcribe-{}.json", std::process::id()));
     if model.starts_with("gemma") {
         // gemma thinks by default, which is much slower and doesn't help to read.
         // Not sent to other models: Ollama rejects it for models without thinking.
@@ -255,7 +409,8 @@ mod tests {
 
     #[test]
     fn prefers_document_models() {
-        let installed = ["gemma4:e2b-it-qat", "qwen2.5vl:7b", "gemma4:e4b-it-qat"].map(String::from);
+        let installed =
+            ["gemma4:e2b-it-qat", "qwen2.5vl:7b", "gemma4:e4b-it-qat"].map(String::from);
         assert_eq!(pick_model(&installed).as_deref(), Some("qwen2.5vl:7b"));
         let installed = ["gemma4:e2b-it-qat", "gemma4:e4b-it-qat"].map(String::from);
         assert_eq!(pick_model(&installed).as_deref(), Some("gemma4:e4b-it-qat"));
